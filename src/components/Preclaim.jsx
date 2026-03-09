@@ -49,6 +49,29 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([u8arr], { type: mime });
 }
 
+/**
+ * Rotate an image 90° anti-clockwise (counter-clockwise).
+ * Returns a Promise that resolves to the rotated dataUrl.
+ */
+function rotateImageCCW90(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      // Swap width/height for 90° rotation
+      canvas.width = img.height;
+      canvas.height = img.width;
+      const ctx = canvas.getContext("2d");
+      // Rotate 90° anti-clockwise: translate to bottom-left, then rotate -90°
+      ctx.translate(0, canvas.height);
+      ctx.rotate(-Math.PI / 2);
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/jpeg", 0.9));
+    };
+    img.src = dataUrl;
+  });
+}
+
 
 
 // ─── SCREEN 1 : LANDING ───────────────────────────────────────────────────────
@@ -269,7 +292,7 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
   const canvasRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   const [streamReady, setStreamReady] = useState(false);
-  const [streamObj, setStreamObj] = useState(null);
+  const streamRef = useRef(null);
 
   const needsLandscape = step.aspect === "landscape";
 
@@ -279,16 +302,25 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
+  // Acquire camera stream — re-runs for each step so the camera stays alive
   useEffect(() => {
     let active = true;
+    setStreamReady(false);
+
     navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
       if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
+      streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
-      setStreamObj(stream);
       setStreamReady(true);
-    });
-    return () => { active = false; streamObj?.getTracks().forEach(t => t.stop()); };
-  }, []);
+    }).catch(() => { /* camera permission denied — handled elsewhere */ });
+
+    return () => {
+      active = false;
+      // Stop the stream only when this effect cleans up (step change or unmount)
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    };
+  }, [stepIndex]);
 
   const capture = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -296,7 +328,8 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext("2d").drawImage(v, 0, 0);
     const dataUrl = c.toDataURL("image/jpeg", 0.9);
-    streamObj?.getTracks().forEach(t => t.stop());
+    // Do NOT stop the stream here — the cleanup in useEffect handles it
+    // when stepIndex changes or the component unmounts
     onCapture(dataUrl);
   };
 
@@ -467,20 +500,24 @@ export default function App() {
   }, [user_id, unique_id]);
 
   // ── Capture handler ──────────────────────────────────────────────────────────
-  const handleCapture = (dataUrl) => {
+  const handleCapture = async (dataUrl) => {
     const step = STEPS[captureIndex];
+    const needsRotation = step.id === "license_plate" || step.id === "chassis_no";
+
+    // Rotate license plate & chassis images 90° anti-clockwise
+    const finalDataUrl = needsRotation ? await rotateImageCCW90(dataUrl) : dataUrl;
+
     const updated = [...photos];
-    updated[captureIndex] = { sideId: step.id, label: step.label, dataUrl };
+    updated[captureIndex] = { sideId: step.id, label: step.label, dataUrl: finalDataUrl };
     setPhotos(updated);
 
     // OCR upload for license plate & chassis number
-    // Build FormData here and pass directly — no intermediary destructuring
-    if ((step.id === "license_plate" || step.id === "chassis_no") && unique_id) {
-      const blob = dataUrlToBlob(dataUrl);
+    if (needsRotation && unique_id) {
+      const blob = dataUrlToBlob(finalDataUrl);
       const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
 
       const formData = new FormData();
-      formData.append("unique_id", unique_id);   // raw string from URL — server parses it
+      formData.append("unique_id", unique_id);
       formData.append("type", step.id);
       formData.append("image", imageFile);
 
