@@ -13,5 +13,6 @@ export const ENDPOINTS = {
   regenerateLink: '/customers/regenerate-link/',
   accountSummary: '/customers/account-summary/',
   inspectionOcrBase: '/customers/inspection',
+  uploadInspectionOcr: '/customers/inspection/upload-ocr/',
 };
 

@@ -16,27 +16,27 @@ async function doFetch(url, options) {
   return data;
 }
 
-export async function apiRequest(path, { method = 'GET', body, headers = {}, auth = true, ...rest } = {}) {
+async function withAuthAndRefresh(path, options, { auth, isFormData }) {
   const url = `${API_BASE_URL}${path}`;
-  const finalHeaders = {
-    'Content-Type': 'application/json',
-    ...headers,
-  };
+  const baseHeaders = options.headers || {};
+
+  let finalHeaders = { ...baseHeaders };
+  if (!isFormData) {
+    finalHeaders = { 'Content-Type': 'application/json', ...finalHeaders };
+  }
 
   let accessToken = getAccessToken();
   if (auth && accessToken) {
     finalHeaders.Authorization = `Bearer ${accessToken}`;
   }
 
-  const options = {
-    method,
+  const requestOptions = {
+    ...options,
     headers: finalHeaders,
-    body: body ? JSON.stringify(body) : undefined,
-    ...rest,
   };
 
   try {
-    return await doFetch(url, options);
+    return await doFetch(url, requestOptions);
   } catch (error) {
     if (!auth || error.status !== 401) {
       throw error;
@@ -48,7 +48,6 @@ export async function apiRequest(path, { method = 'GET', body, headers = {}, aut
       throw error;
     }
 
-    // Try to refresh access token
     try {
       const refreshData = await doFetch(`${API_BASE_URL}${ENDPOINTS.refreshToken}`, {
         method: 'POST',
@@ -62,7 +61,7 @@ export async function apiRequest(path, { method = 'GET', body, headers = {}, aut
           ...finalHeaders,
           Authorization: `Bearer ${refreshData.access}`,
         };
-        return await doFetch(url, { ...options, headers: retryHeaders });
+        return await doFetch(url, { ...requestOptions, headers: retryHeaders });
       }
     } catch {
       clearAuthData();
@@ -70,5 +69,25 @@ export async function apiRequest(path, { method = 'GET', body, headers = {}, aut
 
     throw error;
   }
+}
+
+export async function apiRequest(path, { method = 'GET', body, headers = {}, auth = true, ...rest } = {}) {
+  const options = {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+    ...rest,
+  };
+  return withAuthAndRefresh(path, options, { auth, isFormData: false });
+}
+
+export async function apiRequestForm(path, { method = 'POST', formData, headers = {}, auth = true, ...rest } = {}) {
+  const options = {
+    method,
+    headers,
+    body: formData,
+    ...rest,
+  };
+  return withAuthAndRefresh(path, options, { auth, isFormData: true });
 }
 

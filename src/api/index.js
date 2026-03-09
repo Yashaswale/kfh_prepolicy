@@ -1,5 +1,5 @@
 import { ENDPOINTS } from './config';
-import { apiRequest } from './client';
+import { apiRequest, apiRequestForm } from './client';
 
 // Auth APIs
 export function registerUser(payload) {
@@ -83,5 +83,18 @@ export function getAccountSummary(query = {}) {
   const path = qs ? `${ENDPOINTS.accountSummary}?${qs}` : ENDPOINTS.accountSummary;
 
   return apiRequest(path, { method: 'GET' });
+}
+
+export function uploadInspectionOcr({ unique_id, type, image }) {
+  const form = new FormData();
+  form.append('unique_id', unique_id);
+  form.append('type', type);
+  form.append('image', image);
+
+  return apiRequestForm(ENDPOINTS.uploadInspectionOcr, {
+    method: 'POST',
+    formData: form,
+    auth: false,
+  });
 }
 
