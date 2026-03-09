@@ -22,7 +22,7 @@ const SIDE_LABELS = {
     right: "Right Side",
 };
 const CORRECT_HOLD_MS = 1000; // hold for 1 second to auto-capture
-const FRAME_INTERVAL_MS = 200; // send frames every 200ms (~5 fps)
+const FRAME_INTERVAL_MS = 1000; // send frames every 200ms (~5 fps)
 
 export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     // ── State ──────────────────────────────────────────────────────────────────
