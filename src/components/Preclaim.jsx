@@ -2,16 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2 } from "lucide-react";
 import { verifyInspectionLink, uploadInspectionOcr } from "../api";
+import VehicleSideCapture from "./VehicleSideCapture";
 
 // ─── STEPS ───────────────────────────────────────────────────────────────────
-const STEPS = [
+// Manual steps captured with the traditional camera UI
+const MANUAL_STEPS = [
   { id: "license_plate", label: "License Plate", instruction: "Position the plate within the frame", aspect: "portrait" },
   { id: "chassis_no", label: "Chassis Number", instruction: "Position the chassis number within the frame", aspect: "portrait" },
-  { id: "front", label: "Front of Vehicle", instruction: "Hold phone landscape — fit full front in frame", aspect: "landscape" },
-  { id: "right", label: "Right Side", instruction: "Hold phone landscape — fit full right side", aspect: "landscape" },
-  { id: "rear", label: "Rear of Vehicle", instruction: "Hold phone landscape — fit full rear in frame", aspect: "landscape" },
-  { id: "left", label: "Left Side", instruction: "Hold phone landscape — fit full left side", aspect: "landscape" },
 ];
+
+// WebSocket-detected sides (auto-captured via AI)
+const WS_SIDE_ORDER = ["front", "rear", "left", "right"];
+
+// Combined list for review screen (order: manual first, then WS sides)
+const ALL_STEPS = [
+  ...MANUAL_STEPS,
+  { id: "front", label: "Front of Vehicle" },
+  { id: "rear", label: "Rear of Vehicle" },
+  { id: "left", label: "Left Side" },
+  { id: "right", label: "Right Side" },
+];
+
+// Legacy alias used by CameraCapture — kept for compatibility
+const STEPS = MANUAL_STEPS;
 
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const GlobalStyle = () => (
@@ -477,7 +490,8 @@ export default function App() {
   const [authState, setAuthState] = useState("loading");
   const [screen, setScreen] = useState("landing");
   const [captureIndex, setCaptureIndex] = useState(0);
-  const [photos, setPhotos] = useState([]);
+  const [photos, setPhotos] = useState([]); // Manual photos (license_plate, chassis_no)
+  const [wsPhotos, setWsPhotos] = useState([]); // WebSocket-captured side photos
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reqId] = useState(() => "KFH-" + Date.now().toString(36).toUpperCase());
 
@@ -499,9 +513,9 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user_id, unique_id]);
 
-  // ── Capture handler ──────────────────────────────────────────────────────────
+  // ── Manual capture handler (license plate & chassis) ────────────────────────
   const handleCapture = async (dataUrl) => {
-    const step = STEPS[captureIndex];
+    const step = MANUAL_STEPS[captureIndex];
     const needsRotation = step.id === "license_plate" || step.id === "chassis_no";
 
     // Rotate license plate & chassis images 90° anti-clockwise
@@ -525,15 +539,43 @@ export default function App() {
         .catch(() => { /* swallow — capture flow must not be blocked */ });
     }
 
-    if (captureIndex < STEPS.length - 1) {
+    if (captureIndex < MANUAL_STEPS.length - 1) {
       setCaptureIndex(i => i + 1);
     } else {
-      setScreen("review");
+      // All manual steps done — transition to WebSocket side detection
+      setScreen("ws-camera");
     }
   };
 
-  const handleRetakeSingle = (index) => { setCaptureIndex(index); setScreen("camera"); };
-  const handleRetakeAll = () => { setPhotos([]); setCaptureIndex(0); setScreen("camera"); };
+  // ── WebSocket capture complete handler ───────────────────────────────────────
+  const handleWsCaptured = (sidePhotos) => {
+    // sidePhotos: [{ sideId, label, dataUrl }, ...] for front, rear, left, right
+    setWsPhotos(sidePhotos);
+    setScreen("review");
+  };
+
+  // ── Combined photos for review ──────────────────────────────────────────────
+  const allPhotos = [...photos, ...wsPhotos];
+
+  // ── Retake handlers ─────────────────────────────────────────────────────────
+  const handleRetakeSingle = (index) => {
+    if (index < MANUAL_STEPS.length) {
+      // Retake a manual photo
+      setCaptureIndex(index);
+      setScreen("camera");
+    } else {
+      // Retake a WS-captured photo — restart WS capture
+      setWsPhotos([]);
+      setScreen("ws-camera");
+    }
+  };
+
+  const handleRetakeAll = () => {
+    setPhotos([]);
+    setWsPhotos([]);
+    setCaptureIndex(0);
+    setScreen("camera");
+  };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -578,20 +620,32 @@ export default function App() {
   if (screen === "tips") return <TipsScreen onNext={() => setScreen("autorotation")} />;
   if (screen === "autorotation") return <AutoRotationScreen onNext={() => setScreen("permissions")} />;
   if (screen === "permissions") return (
-    <PermissionsScreen onGranted={() => { setCaptureIndex(0); setPhotos([]); setScreen("camera"); }} />
+    <PermissionsScreen onGranted={() => { setCaptureIndex(0); setPhotos([]); setWsPhotos([]); setScreen("camera"); }} />
   );
   if (screen === "camera") return (
     <CameraCapture
-      step={STEPS[captureIndex]}
+      step={MANUAL_STEPS[captureIndex]}
       stepIndex={captureIndex}
-      totalSteps={STEPS.length}
+      totalSteps={MANUAL_STEPS.length}
       onCapture={handleCapture}
       onBack={() => captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1)}
     />
   );
+  if (screen === "ws-camera") return (
+    <VehicleSideCapture
+      userId={user_id}
+      uniqueId={unique_id}
+      onAllCaptured={handleWsCaptured}
+      onBack={() => {
+        // Go back to last manual step
+        setCaptureIndex(MANUAL_STEPS.length - 1);
+        setScreen("camera");
+      }}
+    />
+  );
   if (screen === "review") return (
     <ReviewSubmit
-      photos={photos}
+      photos={allPhotos}
       onSubmit={handleSubmit}
       onRetakeSingle={handleRetakeSingle}
       onRetakeAll={handleRetakeAll}
