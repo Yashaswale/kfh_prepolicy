@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
+import WindShieldAssessmentResult from "../pages/WindsheildClaim";
 import { listInspections, getInspectionOcr } from "../api";
 
 // ---- Icons ----
@@ -277,11 +278,9 @@ export default function App() {
   const [showSendLink, setShowSendLink] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
   const [rowsError, setRowsError] = useState("");
-  const [ocrOpen, setOcrOpen] = useState(false);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrError, setOcrError] = useState("");
-  const [ocrData, setOcrData] = useState(null);
-  const [ocrRow, setOcrRow] = useState(null);
+  // Detail view state — replaces the old inline OCR modal
+  const [detailView, setDetailView] = useState(null);   // { row, ocrData, ocrLoading, ocrError }
+
 
   // Load inspections list from API
   useEffect(() => {
@@ -352,25 +351,33 @@ export default function App() {
 
   const openOcrForRow = async (row) => {
     if (!row?.id) return;
-    setOcrRow(row);
-    setOcrOpen(true);
-    setOcrLoading(true);
-    setOcrError("");
-    setOcrData(null);
+    // Show the detail page immediately with loading state
+    setDetailView({ row, ocrData: null, ocrLoading: true, ocrError: "" });
     try {
       const data = await getInspectionOcr(row.id);
-      setOcrData(data);
+      setDetailView((prev) => prev ? { ...prev, ocrData: data, ocrLoading: false } : null);
     } catch (err) {
       const msg =
         err?.data?.detail ||
         err?.data?.error ||
         err?.message ||
         "Unable to load inspection details.";
-      setOcrError(msg);
-    } finally {
-      setOcrLoading(false);
+      setDetailView((prev) => prev ? { ...prev, ocrError: msg, ocrLoading: false } : null);
     }
   };
+
+  // ── Detail View (WindShield Assessment Result page) ─────────────────────────
+  if (detailView) {
+    return (
+      <WindShieldAssessmentResult
+        inspectionRow={detailView.row}
+        ocrData={detailView.ocrData}
+        ocrLoading={detailView.ocrLoading}
+        ocrError={detailView.ocrError}
+        onBack={() => setDetailView(null)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-sm">
@@ -634,60 +641,7 @@ export default function App() {
       {/* ── Send Link Modal ── */}
       {showSendLink && <SendLinkModal onClose={() => setShowSendLink(false)} />}
 
-      {/* ── OCR Details Modal ── */}
-      {ocrOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">
-                  Inspection Details
-                </h2>
-                {ocrRow && (
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {ocrRow.name} · Policy {ocrRow.policy}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => { setOcrOpen(false); setOcrData(null); setOcrError(""); }}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="px-6 py-5 space-y-3">
-              {ocrLoading && (
-                <p className="text-sm text-gray-500">Loading OCR details…</p>
-              )}
-              {ocrError && (
-                <p className="text-sm text-red-600">{ocrError}</p>
-              )}
-              {!ocrLoading && !ocrError && ocrData && (
-                <>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 font-medium">License Plate</span>
-                    <span className="text-gray-900 font-semibold">
-                      {ocrData.license_plate || ocrData.plate || "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 font-medium">Chassis Number</span>
-                    <span className="text-gray-900 font-semibold">
-                      {ocrData.chassis_number || ocrData.chassis || "-"}
-                    </span>
-                  </div>
-                </>
-              )}
-              {!ocrLoading && !ocrError && !ocrData && (
-                <p className="text-sm text-gray-500">No OCR data available.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

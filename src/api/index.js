@@ -85,15 +85,10 @@ export function getAccountSummary(query = {}) {
   return apiRequest(path, { method: 'GET' });
 }
 
-export function uploadInspectionOcr({ unique_id, type, image }) {
-  const form = new FormData();
-  form.append('unique_id', unique_id);
-  form.append('type', type);
-  form.append('image', image);
-
+export function uploadInspectionOcr(formData) {
   return apiRequestForm(ENDPOINTS.uploadInspectionOcr, {
     method: 'POST',
-    formData: form,
+    formData,
     auth: false,
   });
 }

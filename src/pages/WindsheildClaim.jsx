@@ -1,22 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const CUSTOMER = {
-  fullName: "Yash Aswale",
-  email: "yashaswale12@gmail.com",
-  quotationNumber: "1234567897348",
-  deviceType: "ISO",
-  comment: "",
-  phoneNo: "08010702947",
-  policyNo: "1234567897348",
-  gpsLocation: "Al Jahra, Kuwait",
-  timeZone: "Arabia Standard Time",
-};
-
-const LICENSE_IMG = "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80";
-const CHASSIS_IMG = "https://images.unsplash.com/photo-1517524008697-84bbe3c3fd98?w=600&q=80";
-const WINDSHIELD_ORIG = "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=700&q=80";
-const WINDSHIELD_AI = "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=700&q=80";
+import { useState, useRef, useEffect } from "react";
 
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
 function ImageEditorModal({ imageUrl, onClose, onSave }) {
@@ -224,8 +206,28 @@ function SectionCard({ title, children }) {
   );
 }
 
+// ─── Loading Skeleton ──────────────────────────────────────────────────────────
+function FieldSkeleton() {
+  return (
+    <div className="flex items-center gap-4 animate-pulse">
+      <div className="w-40 h-4 bg-gray-200 rounded shrink-0" />
+      <div className="flex-1 h-10 bg-gray-100 rounded-lg" />
+    </div>
+  );
+}
+
+function ImageSkeleton() {
+  return (
+    <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video flex items-center justify-center animate-pulse">
+      <svg className="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+      </svg>
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function WindShieldAssessmentResult() {
+export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocrLoading, ocrError, onBack }) {
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
   const printRef = useRef(null);
@@ -237,6 +239,44 @@ export default function WindShieldAssessmentResult() {
   const handleSaveEdit = (dataUrl) => {
     setEditedAiImage(dataUrl);
   };
+
+  // Extract data from props — inspectionRow has customer/row info, ocrData has OCR results
+  const customerName = inspectionRow?.name || "—";
+  const customerEmail = inspectionRow?.email || "—";
+  const policyNumber = inspectionRow?.policy || "—";
+
+  // ── Parse OCR array response ──────────────────────────────────────────────────
+  // API returns: [{ id, type, image, detected_text, created_at }, ...]
+  // `type` values: "license_plate", "chassis_no", "windshield_plate", "windshield_damage", etc.
+  const IMAGE_BASE = "https://api.dezzex.ae";
+
+  const ocrEntries = Array.isArray(ocrData) ? ocrData : [];
+
+  // Find the LATEST entry for each type (last match wins, in case of duplicates)
+  const findEntry = (type) => {
+    const matches = ocrEntries.filter((e) => e.type === type);
+    return matches.length > 0 ? matches[matches.length - 1] : null;
+  };
+
+  const licensePlateEntry = findEntry("license_plate");
+  const chassisEntry = findEntry("chassis_no");
+  const windshieldPlateEntry = findEntry("windshield_plate");
+  const windshieldDamageEntry = findEntry("windshield_damage");
+
+  const buildImageUrl = (entry) => {
+    if (!entry?.image) return null;
+    // If already absolute, use as-is; otherwise prepend base URL
+    if (entry.image.startsWith("http")) return entry.image;
+    return `${IMAGE_BASE}${entry.image}`;
+  };
+
+  const licensePlateText = licensePlateEntry?.detected_text || "—";
+  const chassisNumberText = chassisEntry?.detected_text || "—";
+  const licensePlateImage = buildImageUrl(licensePlateEntry);
+  const chassisImage = buildImageUrl(chassisEntry);
+  const windshieldOriginal = buildImageUrl(windshieldPlateEntry);
+  const windshieldAi = buildImageUrl(windshieldDamageEntry);
+  const windshieldDamageText = windshieldDamageEntry?.detected_text || null;
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -252,7 +292,10 @@ export default function WindShieldAssessmentResult() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-30 no-print">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-4 py-2 rounded-xl hover:bg-gray-100">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-4 py-2 rounded-xl hover:bg-gray-100"
+          >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
@@ -278,124 +321,170 @@ export default function WindShieldAssessmentResult() {
       {/* Content */}
       <div ref={printRef} className="max-w-6xl mx-auto px-6 py-8 print-page">
 
+        {/* Error banner */}
+        {ocrError && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-4 mb-6 text-sm text-red-700 flex items-center gap-3">
+            <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            {ocrError}
+          </div>
+        )}
+
         {/* Customer Details */}
         <SectionCard title="Customer Details">
-          <div className="grid grid-cols-2 gap-x-12 gap-y-4">
-            <FieldRow label="Full Name" value={CUSTOMER.fullName} />
-            <FieldRow label="Phone No." value={CUSTOMER.phoneNo} />
-            <FieldRow label="Email Address" value={CUSTOMER.email} />
-            <FieldRow label="Policy No." value={CUSTOMER.policyNo} />
-            <FieldRow label="Quotation Number" value={CUSTOMER.quotationNumber} />
-            <FieldRow label="GPS Location" value={CUSTOMER.gpsLocation} />
-            <FieldRow label="Device Type" value={CUSTOMER.deviceType} />
-            <FieldRow label="Time Zone" value={CUSTOMER.timeZone} />
-            <div className="col-span-2 flex items-start gap-4">
-              <span className="text-sm font-medium text-gray-600 w-40 shrink-0 pt-2.5">Comment</span>
-              <div className="flex-1 bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 min-h-[72px]">
-                {CUSTOMER.comment || <span className="text-gray-400">No comment provided</span>}
-              </div>
+          {ocrLoading ? (
+            <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+              {Array.from({ length: 4 }).map((_, i) => <FieldSkeleton key={i} />)}
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+              <FieldRow label="Full Name" value={customerName} />
+              <FieldRow label="Email Address" value={customerEmail} />
+              <FieldRow label="Policy No." value={policyNumber} />
+              <FieldRow label="Status" value={inspectionRow?.status || "—"} />
+            </div>
+          )}
         </SectionCard>
 
         {/* License & Chassis */}
         <SectionCard>
-          <div className="grid grid-cols-2 gap-10">
-            {/* License */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-3">License Number</h3>
-              <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video">
-                <img src={LICENSE_IMG} alt="License plate" className="w-full h-full object-cover" />
+          {ocrLoading ? (
+            <div className="grid grid-cols-2 gap-10">
+              <div>
+                <div className="h-5 w-32 bg-gray-200 rounded mb-3 animate-pulse" />
+                <ImageSkeleton />
+                <FieldSkeleton />
               </div>
-              <FieldRow label="License Number" value="AB 5267" />
+              <div>
+                <div className="h-5 w-32 bg-gray-200 rounded mb-3 animate-pulse" />
+                <ImageSkeleton />
+                <FieldSkeleton />
+              </div>
             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-10">
+              {/* License */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">License Number</h3>
+                <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video">
+                  {licensePlateImage ? (
+                    <img src={licensePlateImage} alt="License plate" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <FieldRow label="License Number" value={licensePlateText} />
+              </div>
 
-            {/* Chassis */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
-              <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video">
-                <img src={CHASSIS_IMG} alt="Chassis number" className="w-full h-full object-cover" />
+              {/* Chassis */}
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
+                <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video">
+                  {chassisImage ? (
+                    <img src={chassisImage} alt="Chassis number" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <FieldRow label="Chassis Number" value={chassisNumberText} />
               </div>
-              <FieldRow label="Chassis Number" value="MA1AB73929248EF3993" />
             </div>
-          </div>
+          )}
         </SectionCard>
 
         {/* Wind Shield Section */}
         <SectionCard>
           <h3 className="text-sm font-bold text-gray-900 mb-4">Wind Shield</h3>
 
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            {/* Original */}
-            <div>
-              <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video">
-                <img src={WINDSHIELD_ORIG} alt="Original windshield" className="w-full h-full object-cover" />
-                <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2">
-                  <span className="text-white text-xs font-medium">Original Image</span>
-                </div>
-              </div>
+          {ocrLoading ? (
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <ImageSkeleton />
+              <ImageSkeleton />
             </div>
-
-            {/* AI Result */}
-            <div>
-              <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group">
-                {editedAiImage ? (
-                  <img src={editedAiImage} alt="AI result edited" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="relative w-full h-full">
-                    <img src={WINDSHIELD_AI} alt="AI windshield result" className="w-full h-full object-cover" />
-                    {/* Damage bounding box overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="relative" style={{ width: "55%", height: "65%" }}>
-                        <div className="absolute inset-0 border-2 border-red-500 rounded-sm">
-                          <span className="absolute -top-6 left-0 bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded">
-                            damage: 0.32
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2 flex items-center justify-between">
-                  <span className="text-white text-xs font-medium">AI Result</span>
-                  <button
-                    onClick={() => setEditingImage(WINDSHIELD_AI)}
-                    className="no-print flex items-center gap-1.5 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                    </svg>
-                    Edit Result
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Damage Details */}
-          <div className="grid grid-cols-2 gap-10 mt-2">
-            <div className="space-y-4">
+          ) : (
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              {/* Original */}
               <div>
-                <p className="text-sm font-bold text-gray-900 mb-2">Damage Part</p>
-                <div className="bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800">Wind Shield</div>
+                <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video">
+                  {windshieldOriginal ? (
+                    <img src={windshieldOriginal} alt="Original windshield" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2">
+                    <span className="text-white text-xs font-medium">Original Image</span>
+                  </div>
+                </div>
               </div>
+
+              {/* Windshield Damage */}
+              <div>
+                <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group">
+                  {editedAiImage ? (
+                    <img src={editedAiImage} alt="AI result edited" className="w-full h-full object-cover" />
+                  ) : windshieldAi ? (
+                    <img src={windshieldAi} alt="Windshield damage" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                      </svg>
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2 flex items-center justify-between">
+                    <span className="text-white text-xs font-medium">Windshield Damage</span>
+                    {(windshieldAi || editedAiImage) && (
+                      <button
+                        onClick={() => setEditingImage(windshieldAi)}
+                        className="no-print flex items-center gap-1.5 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Edit Result
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Detected text from windshield damage if available */}
+          {!ocrLoading && windshieldDamageText && (
+            <div className="mt-4">
+              <FieldRow label="Damage Detection" value={windshieldDamageText} />
+            </div>
+          )}
+
+          {/* Damage details from inspection row */}
+          {!ocrLoading && inspectionRow?.damage && (
+            <div className="grid grid-cols-2 gap-10 mt-4">
               <div>
                 <p className="text-sm font-bold text-gray-900 mb-2">Damage Level</p>
                 <div className="bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-                  High
+                  <span className={`w-2 h-2 rounded-full inline-block ${inspectionRow.damage === "Major Damage" ? "bg-red-500" :
+                    inspectionRow.damage === "Minor Damage" ? "bg-orange-400" : "bg-gray-400"
+                    }`} />
+                  {inspectionRow.damage}
                 </div>
               </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-gray-900 mb-2">Need to Change</p>
-              <div className="bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-                Yes
-              </div>
-            </div>
-          </div>
+          )}
         </SectionCard>
 
       </div>

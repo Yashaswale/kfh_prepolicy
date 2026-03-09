@@ -5,12 +5,12 @@ import { verifyInspectionLink, uploadInspectionOcr } from "../api";
 
 // ─── STEPS ───────────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: "license_plate", label: "License Plate",      instruction: "Position the plate within the frame",          aspect: "portrait"  },
-  { id: "chassis_no",    label: "Chassis Number",     instruction: "Position the chassis number within the frame", aspect: "portrait"  },
-  { id: "front",         label: "Front of Vehicle",   instruction: "Hold phone landscape — fit full front in frame", aspect: "landscape" },
-  { id: "right",         label: "Right Side",         instruction: "Hold phone landscape — fit full right side",   aspect: "landscape" },
-  { id: "rear",          label: "Rear of Vehicle",    instruction: "Hold phone landscape — fit full rear in frame", aspect: "landscape" },
-  { id: "left",          label: "Left Side",          instruction: "Hold phone landscape — fit full left side",    aspect: "landscape" },
+  { id: "license_plate", label: "License Plate", instruction: "Position the plate within the frame", aspect: "portrait" },
+  { id: "chassis_no", label: "Chassis Number", instruction: "Position the chassis number within the frame", aspect: "portrait" },
+  { id: "front", label: "Front of Vehicle", instruction: "Hold phone landscape — fit full front in frame", aspect: "landscape" },
+  { id: "right", label: "Right Side", instruction: "Hold phone landscape — fit full right side", aspect: "landscape" },
+  { id: "rear", label: "Rear of Vehicle", instruction: "Hold phone landscape — fit full rear in frame", aspect: "landscape" },
+  { id: "left", label: "Left Side", instruction: "Hold phone landscape — fit full left side", aspect: "landscape" },
 ];
 
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
@@ -49,33 +49,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([u8arr], { type: mime });
 }
 
-/**
- * Builds FormData directly and calls uploadInspectionOcr with it.
- *
- * Why this fixes the "A valid integer is required" error:
- *   - useParams() always returns strings, so unique_id is "123" not 123.
- *   - If the api helper wraps fields in a plain object, fetch/axios may
- *     re-serialise them in a way DRF rejects.
- *   - By building FormData here and passing it straight through, we ensure
- *     the server sees exactly: unique_id="123", type="license_plate", image=<File>.
- *   - DRF's IntegerField accepts the numeric string "123" from multipart form data.
- *
- * Why wrapping in File fixes the image extension error:
- *   - A raw Blob has no filename, so the server sees extension "".
- *   - new File([blob], "image.jpg", { type: "image/jpeg" }) gives it a name
- *     the server can validate against its allowed-extensions list.
- */
-function buildAndUploadOcr(unique_id, type, dataUrl, uploadFn) {
-  const blob      = dataUrlToBlob(dataUrl);
-  const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
 
-  const formData = new FormData();
-  formData.append("unique_id", parseInt(unique_id, 10)); // "123" — DRF IntegerField accepts this
-  formData.append("type",      type);
-  formData.append("image",     imageFile, "image.jpg");
-
-  return uploadFn(formData);
-}
 
 // ─── SCREEN 1 : LANDING ───────────────────────────────────────────────────────
 function Landing({ onStart }) {
@@ -84,22 +58,22 @@ function Landing({ onStart }) {
       <GlobalStyle />
       <div className="fade-up flex items-center gap-2 mt-4">
         <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-          <path d="M19 3 L33 10.5 L33 27.5 L19 35 L5 27.5 L5 10.5 Z" fill="none" stroke="#1a8a3c" strokeWidth="2"/>
-          <path d="M13 19 L17 23 L25 15" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M19 3 L33 10.5 L33 27.5 L19 35 L5 27.5 L5 10.5 Z" fill="none" stroke="#1a8a3c" strokeWidth="2" />
+          <path d="M13 19 L17 23 L25 15" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="font-syne font-800 text-xl tracking-widest" style={{fontWeight:800,letterSpacing:'0.15em'}}>
-          <span style={{color:'#1a8a3c'}}>KFH</span>
-          <span className="text-gray-400 text-xs font-400 ml-1" style={{fontWeight:400,letterSpacing:'0.2em'}}>TAKAFUL</span>
+        <span className="font-syne font-800 text-xl tracking-widest" style={{ fontWeight: 800, letterSpacing: '0.15em' }}>
+          <span style={{ color: '#1a8a3c' }}>KFH</span>
+          <span className="text-gray-400 text-xs font-400 ml-1" style={{ fontWeight: 400, letterSpacing: '0.2em' }}>TAKAFUL</span>
         </span>
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
         <div className="fade-up-1 relative mb-8">
           <div className="w-24 h-24 rounded-full bg-green-50 flex items-center justify-center pulse-ring relative">
-            <Camera className="w-10 h-10" style={{color:'#1a8a3c'}} />
+            <Camera className="w-10 h-10" style={{ color: '#1a8a3c' }} />
           </div>
         </div>
-        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{fontWeight:700}}>
+        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{ fontWeight: 700 }}>
           Pre Claim Policy<br />Inspection
         </h1>
         <p className="fade-up-2 text-gray-500 text-center text-sm leading-relaxed mb-10">
@@ -107,9 +81,9 @@ function Landing({ onStart }) {
         </p>
         <div className="fade-up-2 w-full space-y-3 mb-10">
           {[
-            { icon: <Camera className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "6 photos required: plate, chassis & 4 sides" },
-            { icon: <MapPin  className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "GPS location will be recorded" },
-            { icon: <Shield  className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "Securely submitted for assessment" },
+            { icon: <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: "6 photos required: plate, chassis & 4 sides" },
+            { icon: <MapPin className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: "GPS location will be recorded" },
+            { icon: <Shield className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: "Securely submitted for assessment" },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 bg-green-50 rounded-xl px-4 py-3">
               <div className="mt-0.5 flex-shrink-0">{item.icon}</div>
@@ -122,7 +96,7 @@ function Landing({ onStart }) {
       <div className="fade-up-3 w-full max-w-sm">
         <button onClick={onStart}
           className="shimmer-btn w-full text-white font-syne font-bold py-4 rounded-2xl text-base tracking-wide shadow-lg active:scale-95 transition-transform"
-          style={{fontWeight:700}}>
+          style={{ fontWeight: 700 }}>
           Start Assessment
         </button>
       </div>
@@ -151,7 +125,7 @@ function TipsScreen({ onNext }) {
       <GlobalStyle />
       <div className="flex items-center justify-between mb-6 fade-up">
         <div className="flex gap-2">
-          {[0,1].map(i => (
+          {[0, 1].map(i => (
             <div key={i} className="h-1.5 rounded-full transition-all duration-300"
               style={{ width: i === page ? 32 : 16, background: i === page ? '#1a8a3c' : '#e2e8f0' }} />
           ))}
@@ -161,7 +135,7 @@ function TipsScreen({ onNext }) {
       <div className="mb-6 fade-up">
         <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 ${page === 0 ? 'bg-green-50' : 'bg-red-50'}`}>
           {page === 0
-            ? <Check className="w-4 h-4" style={{color:'#1a8a3c'}} />
+            ? <Check className="w-4 h-4" style={{ color: '#1a8a3c' }} />
             : <X className="w-4 h-4 text-red-500" />}
           <span className={`text-sm font-semibold ${page === 0 ? 'kfh-green' : 'text-red-500'}`}>
             Photo Tips – {page === 0 ? "Do's" : "Don'ts"}
@@ -181,13 +155,13 @@ function TipsScreen({ onNext }) {
         {page === 0 ? (
           <button onClick={() => setPage(1)}
             className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform"
-            style={{fontWeight:700}}>
+            style={{ fontWeight: 700 }}>
             Next
           </button>
         ) : (
           <button onClick={onNext}
             className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform"
-            style={{fontWeight:700}}>
+            style={{ fontWeight: 700 }}>
             Got It — Continue <ChevronRight className="inline w-4 h-4 ml-1" />
           </button>
         )}
@@ -205,12 +179,12 @@ function AutoRotationScreen({ onNext }) {
       <div className="flex flex-col items-center text-center fade-up">
         <div className="w-20 h-20 rounded-2xl bg-green-50 flex items-center justify-center mb-8">
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <path d="M8 20 A12 12 0 1 1 20 32" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round"/>
-            <path d="M8 26 L8 20 L14 20" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1a8a3c" strokeWidth="2"/>
+            <path d="M8 20 A12 12 0 1 1 20 32" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M8 26 L8 20 L14 20" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1a8a3c" strokeWidth="2" />
           </svg>
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{fontWeight:700}}>Turn Off Auto-Rotation</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Turn Off Auto-Rotation</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
           Before we begin, please turn off your phone's auto-rotation feature.
         </p>
@@ -222,7 +196,7 @@ function AutoRotationScreen({ onNext }) {
       </div>
       <button onClick={onNext}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform"
-        style={{fontWeight:700}}>
+        style={{ fontWeight: 700 }}>
         Next
       </button>
     </div>
@@ -231,7 +205,7 @@ function AutoRotationScreen({ onNext }) {
 
 // ─── SCREEN 4 : PERMISSIONS ───────────────────────────────────────────────────
 function PermissionsScreen({ onGranted }) {
-  const [status,   setStatus]   = useState("idle");
+  const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   const request = async () => {
@@ -256,8 +230,8 @@ function PermissionsScreen({ onGranted }) {
       <div className="flex flex-col items-center text-center fade-up w-full max-w-sm">
         <div className="flex gap-5 mb-8">
           {[
-            { icon: <Camera className="w-7 h-7" style={{color:'#1a8a3c'}}/>, label: "Camera"   },
-            { icon: <MapPin  className="w-7 h-7" style={{color:'#1a8a3c'}}/>, label: "Location" },
+            { icon: <Camera className="w-7 h-7" style={{ color: '#1a8a3c' }} />, label: "Camera" },
+            { icon: <MapPin className="w-7 h-7" style={{ color: '#1a8a3c' }} />, label: "Location" },
           ].map(p => (
             <div key={p.label} className="flex-1 bg-green-50 rounded-2xl py-6 flex flex-col items-center gap-2">
               {p.icon}
@@ -265,7 +239,7 @@ function PermissionsScreen({ onGranted }) {
             </div>
           ))}
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{fontWeight:700}}>Allow Access</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Allow Access</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6">
           We need camera and GPS permissions to capture and geo-tag your vehicle photos.
         </p>
@@ -282,7 +256,7 @@ function PermissionsScreen({ onGranted }) {
       </div>
       <button onClick={request} disabled={status === "requesting"}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform disabled:opacity-60"
-        style={{fontWeight:700}}>
+        style={{ fontWeight: 700 }}>
         Grant Permissions
       </button>
     </div>
@@ -291,11 +265,11 @@ function PermissionsScreen({ onGranted }) {
 
 // ─── SCREEN 5 : CAMERA CAPTURE ───────────────────────────────────────────────
 function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
-  const videoRef  = useRef(null);
+  const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   const [streamReady, setStreamReady] = useState(false);
-  const [streamObj,   setStreamObj]   = useState(null);
+  const [streamObj, setStreamObj] = useState(null);
 
   const needsLandscape = step.aspect === "landscape";
 
@@ -340,11 +314,11 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
           <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4 text-white" />
           </button>
-          <span className="text-white font-syne font-bold text-base flex-1" style={{fontWeight:700}}>{step.label}</span>
+          <span className="text-white font-syne font-bold text-base flex-1" style={{ fontWeight: 700 }}>{step.label}</span>
           <span className="text-white/60 text-xs">{stepIndex + 1} / {totalSteps}</span>
         </div>
         <div className="flex gap-1.5 justify-center mt-2">
-          {Array.from({length: totalSteps}).map((_, i) => (
+          {Array.from({ length: totalSteps }).map((_, i) => (
             <div key={i} className="h-1.5 rounded-full transition-all duration-300"
               style={{ width: i === stepIndex ? 24 : 8, background: i < stepIndex ? '#1a8a3c' : i === stepIndex ? 'white' : 'rgba(255,255,255,0.3)' }} />
           ))}
@@ -357,7 +331,7 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
           <div className="w-16 h-16 rounded-2xl bg-yellow-500/20 flex items-center justify-center mb-5">
             <RotateCcw className="w-8 h-8 text-yellow-400" />
           </div>
-          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{fontWeight:700}}>Rotate to Landscape</h3>
+          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>Rotate to Landscape</h3>
           <p className="text-white/60 text-sm">For this photo, hold your phone horizontally</p>
         </div>
       )}
@@ -367,15 +341,15 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="border-2 border-white/40 rounded-2xl"
             style={{ width: needsLandscape ? '85%' : '65%', height: needsLandscape ? '55%' : '65%' }}>
-            {[0,1,2,3].map(i => (
+            {[0, 1, 2, 3].map(i => (
               <div key={i} className="absolute w-5 h-5"
                 style={{
-                  top:    i < 2  ? 0 : 'auto', bottom: i >= 2 ? 0 : 'auto',
-                  left:   i % 2 === 0 ? 0 : 'auto', right: i % 2 === 1 ? 0 : 'auto',
-                  borderTop:    i < 2  ? '2px solid #1a8a3c' : 'none',
+                  top: i < 2 ? 0 : 'auto', bottom: i >= 2 ? 0 : 'auto',
+                  left: i % 2 === 0 ? 0 : 'auto', right: i % 2 === 1 ? 0 : 'auto',
+                  borderTop: i < 2 ? '2px solid #1a8a3c' : 'none',
                   borderBottom: i >= 2 ? '2px solid #1a8a3c' : 'none',
-                  borderLeft:   i % 2 === 0 ? '2px solid #1a8a3c' : 'none',
-                  borderRight:  i % 2 === 1 ? '2px solid #1a8a3c' : 'none',
+                  borderLeft: i % 2 === 0 ? '2px solid #1a8a3c' : 'none',
+                  borderRight: i % 2 === 1 ? '2px solid #1a8a3c' : 'none',
                   margin: '-1px',
                 }} />
             ))}
@@ -388,7 +362,7 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
         <p className="text-white/70 text-xs text-center mb-4">{step.instruction}</p>
         <button onClick={capture} disabled={!streamReady || !orientationOk}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-sm flex items-center justify-center gap-2 kfh-bg disabled:opacity-40 active:scale-95 transition-transform"
-          style={{fontWeight:700}}>
+          style={{ fontWeight: 700 }}>
           <Camera className="w-4 h-4" />
           Capture {step.label} ({stepIndex + 1}/{totalSteps})
         </button>
@@ -406,7 +380,7 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
         <div className="w-14 h-14 rounded-full kfh-bg flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="w-7 h-7 text-white" />
         </div>
-        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{fontWeight:700}}>Review Your Photos</h2>
+        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{ fontWeight: 700 }}>Review Your Photos</h2>
         <p className="text-gray-500 text-sm">Make sure all vehicle sides are clearly visible</p>
       </div>
 
@@ -430,12 +404,12 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
       <div className="px-5 mt-6 space-y-3">
         <button onClick={onSubmit} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-          style={{fontWeight:700}}>
+          style={{ fontWeight: 700 }}>
           {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting…</> : 'Submit Assessment'}
         </button>
         <button onClick={onRetakeAll} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-gray-700 font-syne font-semibold text-base bg-white border border-gray-200 active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
-          style={{fontWeight:600}}>
+          style={{ fontWeight: 600 }}>
           <RotateCcw className="w-4 h-4" /> Retake All Photos
         </button>
       </div>
@@ -451,13 +425,13 @@ function SuccessScreen({ reqId }) {
       <div className="w-20 h-20 rounded-full kfh-bg flex items-center justify-center mb-6 fade-up">
         <Check className="w-10 h-10 text-white" />
       </div>
-      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{fontWeight:700}}>Assessment Submitted</h2>
+      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>Assessment Submitted</h2>
       <p className="text-gray-500 text-sm leading-relaxed mb-8 fade-up-1">
         Your vehicle inspection photos have been successfully submitted. Our team will review and get back to you shortly.
       </p>
       <div className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 fade-up-2">
         <p className="text-xs text-gray-400 mb-1">Request ID</p>
-        <p className="font-syne font-bold text-gray-800 text-lg tracking-wider" style={{fontWeight:700}}>{reqId}</p>
+        <p className="font-syne font-bold text-gray-800 text-lg tracking-wider" style={{ fontWeight: 700 }}>{reqId}</p>
         <p className="text-xs text-gray-400 mt-1">Keep this ID to track your assessment</p>
       </div>
     </div>
@@ -467,10 +441,10 @@ function SuccessScreen({ reqId }) {
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const { user_id, unique_id } = useParams();
-  const [authState,    setAuthState]    = useState("loading");
-  const [screen,       setScreen]       = useState("landing");
+  const [authState, setAuthState] = useState("loading");
+  const [screen, setScreen] = useState("landing");
   const [captureIndex, setCaptureIndex] = useState(0);
-  const [photos,       setPhotos]       = useState([]);
+  const [photos, setPhotos] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reqId] = useState(() => "KFH-" + Date.now().toString(36).toUpperCase());
 
@@ -483,9 +457,9 @@ export default function App() {
       try {
         const res = await verifyInspectionLink({ user_id: Number(user_id), unique_id });
         if (cancelled) return;
-        if (res?.is_expired)       setAuthState("expired");
+        if (res?.is_expired) setAuthState("expired");
         else if (res?.is_verified) setAuthState("ok");
-        else                       setAuthState("failed");
+        else setAuthState("failed");
       } catch { if (!cancelled) setAuthState("failed"); }
     };
     run();
@@ -499,9 +473,18 @@ export default function App() {
     updated[captureIndex] = { sideId: step.id, label: step.label, dataUrl };
     setPhotos(updated);
 
-    // OCR upload — FormData built here so we fully control field types
+    // OCR upload for license plate & chassis number
+    // Build FormData here and pass directly — no intermediary destructuring
     if ((step.id === "license_plate" || step.id === "chassis_no") && unique_id) {
-      buildAndUploadOcr(unique_id, step.id, dataUrl, uploadInspectionOcr)
+      const blob = dataUrlToBlob(dataUrl);
+      const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+
+      const formData = new FormData();
+      formData.append("unique_id", unique_id);   // raw string from URL — server parses it
+      formData.append("type", step.id);
+      formData.append("image", imageFile);
+
+      uploadInspectionOcr(formData)
         .catch(() => { /* swallow — capture flow must not be blocked */ });
     }
 
@@ -513,7 +496,7 @@ export default function App() {
   };
 
   const handleRetakeSingle = (index) => { setCaptureIndex(index); setScreen("camera"); };
-  const handleRetakeAll    = ()      => { setPhotos([]); setCaptureIndex(0); setScreen("camera"); };
+  const handleRetakeAll = () => { setPhotos([]); setCaptureIndex(0); setScreen("camera"); };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -554,10 +537,10 @@ export default function App() {
   );
 
   // ── Screens ───────────────────────────────────────────────────────────────────
-  if (screen === "landing")      return <Landing onStart={() => setScreen("tips")} />;
-  if (screen === "tips")         return <TipsScreen onNext={() => setScreen("autorotation")} />;
+  if (screen === "landing") return <Landing onStart={() => setScreen("tips")} />;
+  if (screen === "tips") return <TipsScreen onNext={() => setScreen("autorotation")} />;
   if (screen === "autorotation") return <AutoRotationScreen onNext={() => setScreen("permissions")} />;
-  if (screen === "permissions")  return (
+  if (screen === "permissions") return (
     <PermissionsScreen onGranted={() => { setCaptureIndex(0); setPhotos([]); setScreen("camera"); }} />
   );
   if (screen === "camera") return (
