@@ -93,3 +93,29 @@ export function uploadInspectionOcr(formData) {
   });
 }
 
+export function getDamageResults(id) {
+  if (!id) {
+    return Promise.reject(new Error('Inspection id is required for damage results'));
+  }
+  const path = `${ENDPOINTS.damageResultsBase}/${id}/damage-results/`;
+  return apiRequest(path, { method: 'GET' });
+}
+
+export function editInspectionOcr(mediaId, detectedText) {
+  if (!mediaId) {
+    return Promise.reject(new Error('Media id is required for editing OCR'));
+  }
+  const path = `${ENDPOINTS.editOcrBase}/${mediaId}/`;
+  return apiRequest(path, {
+    method: 'PUT',
+    body: { detected_text: detectedText },
+  });
+}
+
+export function getWindshieldResults(inspectionId) {
+  if (!inspectionId) {
+    return Promise.reject(new Error('Inspection id is required for windshield results'));
+  }
+  const path = `${ENDPOINTS.windshieldResultsBase}/${inspectionId}/`;
+  return apiRequest(path, { method: 'GET' });
+}

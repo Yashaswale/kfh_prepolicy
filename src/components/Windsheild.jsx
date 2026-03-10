@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2, Trash2, Wind } from "lucide-react";
+import { getDamageResults, uploadInspectionOcr } from "../api";
+import WindShieldAssessmentResult from "../pages/WindsheildClaim";
 
 // ─── STEPS ────────────────────────────────────────────────────────────────────
 const STEPS = [
-  { id: "license_plate",      label: "License Plate",              instruction: "Position the plate clearly within the frame",                    aspect: "portrait"  },
-  { id: "chassis_no",         label: "Chassis Number",             instruction: "Position the chassis number within the frame",                   aspect: "portrait"  },
-  { id: "windshield_plate",   label: "Windshield with Plate",      instruction: "Hold landscape — capture full windshield with plate visible",    aspect: "landscape" },
-  { id: "windshield_damage",  label: "Windshield Damage Closeup",  instruction: "Move closer — fill the frame with the damaged area",             aspect: "portrait"  },
+  { id: "license_plate", label: "License Plate", instruction: "Position the plate clearly within the frame", aspect: "portrait" },
+  { id: "chassis_no", label: "Chassis Number", instruction: "Position the chassis number within the frame", aspect: "portrait" },
+  { id: "windshield_plate", label: "Windshield with Plate", instruction: "Hold landscape — capture full windshield with plate visible", aspect: "landscape" },
+  { id: "windshield_damage", label: "Windshield Damage Closeup", instruction: "Move closer — fill the frame with the damaged area", aspect: "portrait" },
 ];
 
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
@@ -43,12 +45,12 @@ const GlobalStyle = () => (
 const KFHLogo = () => (
   <div className="fade-up flex items-center gap-2 mt-4">
     <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-      <path d="M19 3 L33 10.5 L33 27.5 L19 35 L5 27.5 L5 10.5 Z" fill="none" stroke="#1a8a3c" strokeWidth="2"/>
-      <path d="M13 19 L17 23 L25 15" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M19 3 L33 10.5 L33 27.5 L19 35 L5 27.5 L5 10.5 Z" fill="none" stroke="#1a8a3c" strokeWidth="2" />
+      <path d="M13 19 L17 23 L25 15" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-    <span className="font-syne text-xl tracking-widest" style={{fontWeight:800, letterSpacing:'0.15em'}}>
-      <span style={{color:'#1a8a3c'}}>KFH</span>
-      <span className="text-gray-400 text-xs ml-1" style={{fontWeight:400, letterSpacing:'0.2em'}}>TAKAFUL</span>
+    <span className="font-syne text-xl tracking-widest" style={{ fontWeight: 800, letterSpacing: '0.15em' }}>
+      <span style={{ color: '#1a8a3c' }}>KFH</span>
+      <span className="text-gray-400 text-xs ml-1" style={{ fontWeight: 400, letterSpacing: '0.2em' }}>TAKAFUL</span>
     </span>
   </div>
 );
@@ -58,18 +60,18 @@ const WindshieldIcon = ({ size = 48, color = "#1e6fa8", crack = false }) => (
   <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
     {/* car outline */}
     <path d="M6 32 L6 22 L12 14 L36 14 L42 22 L42 32 Q42 35 39 35 L9 35 Q6 35 6 32Z"
-      stroke={color} strokeWidth="2" fill="none"/>
+      stroke={color} strokeWidth="2" fill="none" />
     {/* windshield glass */}
-    <path d="M10 22 L14 16 L34 16 L38 22Z" fill={color} opacity="0.15"/>
-    <path d="M10 22 L14 16 L34 16 L38 22Z" stroke={color} strokeWidth="1.5" fill="none"/>
+    <path d="M10 22 L14 16 L34 16 L38 22Z" fill={color} opacity="0.15" />
+    <path d="M10 22 L14 16 L34 16 L38 22Z" stroke={color} strokeWidth="1.5" fill="none" />
     {/* crack */}
     {crack && (
       <path d="M22 17 L20 20 L24 22 L21 26" stroke="#e53e3e" strokeWidth="1.5"
-        strokeLinecap="round" strokeLinejoin="round" className="crack-anim"/>
+        strokeLinecap="round" strokeLinejoin="round" className="crack-anim" />
     )}
     {/* wheels */}
-    <circle cx="14" cy="35" r="4" stroke={color} strokeWidth="2" fill="none"/>
-    <circle cx="34" cy="35" r="4" stroke={color} strokeWidth="2" fill="none"/>
+    <circle cx="14" cy="35" r="4" stroke={color} strokeWidth="2" fill="none" />
+    <circle cx="34" cy="35" r="4" stroke={color} strokeWidth="2" fill="none" />
   </svg>
 );
 
@@ -81,11 +83,11 @@ const StepPill = ({ step, index, current }) => {
     <div className="flex flex-col items-center gap-1">
       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all
         ${done ? 'kfh-bg text-white' : active ? 'ws-blue-bg text-white' : 'bg-gray-100 text-gray-400'}`}
-        style={{fontWeight:700}}>
-        {done ? <Check className="w-4 h-4"/> : index + 1}
+        style={{ fontWeight: 700 }}>
+        {done ? <Check className="w-4 h-4" /> : index + 1}
       </div>
       <span className={`text-xs text-center leading-tight max-w-14 ${active ? 'ws-blue font-semibold' : done ? 'text-gray-500' : 'text-gray-300'}`}
-        style={{fontSize:'9px', maxWidth:'52px'}}>
+        style={{ fontSize: '9px', maxWidth: '52px' }}>
         {step.label}
       </span>
     </div>
@@ -103,19 +105,19 @@ function Landing({ onStart }) {
         {/* Icon */}
         <div className="fade-up-1 relative mb-8">
           <div className="w-24 h-24 rounded-full flex items-center justify-center pulse-ring-blue relative"
-            style={{background:'#eef5fb'}}>
+            style={{ background: '#eef5fb' }}>
             <WindshieldIcon size={52} color="#1e6fa8" crack={true} />
           </div>
         </div>
 
         {/* Badge */}
         <div className="fade-up-1 inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-4"
-          style={{background:'#eef5fb', border:'1px solid #b3d4ed'}}>
+          style={{ background: '#eef5fb', border: '1px solid #b3d4ed' }}>
           <Wind className="w-3.5 h-3.5 ws-blue" />
           <span className="text-xs font-semibold ws-blue uppercase tracking-wide">Windshield Claim</span>
         </div>
 
-        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{fontWeight:700}}>
+        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{ fontWeight: 700 }}>
           Windshield Damage<br />Inspection
         </h1>
         <p className="fade-up-2 text-gray-500 text-center text-sm leading-relaxed mb-10">
@@ -124,13 +126,13 @@ function Landing({ onStart }) {
 
         <div className="fade-up-2 w-full space-y-3 mb-10">
           {[
-            { icon: <Camera className="w-4 h-4" style={{color:'#1e6fa8'}}/>, text: "License plate & chassis number photos" },
-            { icon: <WindshieldIcon size={16} color="#1e6fa8" />,             text: "Full windshield with plate visible" },
-            { icon: <Camera className="w-4 h-4" style={{color:'#1e6fa8'}}/>, text: "Close-up of the damaged area" },
-            { icon: <MapPin className="w-4 h-4" style={{color:'#1e6fa8'}}/>, text: "GPS location will be recorded" },
+            { icon: <Camera className="w-4 h-4" style={{ color: '#1e6fa8' }} />, text: "License plate & chassis number photos" },
+            { icon: <WindshieldIcon size={16} color="#1e6fa8" />, text: "Full windshield with plate visible" },
+            { icon: <Camera className="w-4 h-4" style={{ color: '#1e6fa8' }} />, text: "Close-up of the damaged area" },
+            { icon: <MapPin className="w-4 h-4" style={{ color: '#1e6fa8' }} />, text: "GPS location will be recorded" },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 rounded-xl px-4 py-3"
-              style={{background:'#eef5fb'}}>
+              style={{ background: '#eef5fb' }}>
               <div className="mt-0.5 flex-shrink-0">{item.icon}</div>
               <span className="text-sm text-gray-600">{item.text}</span>
             </div>
@@ -141,7 +143,7 @@ function Landing({ onStart }) {
       <div className="fade-up-3 w-full max-w-sm">
         <button onClick={onStart}
           className="shimmer-ws w-full text-white font-syne font-bold py-4 rounded-2xl text-base tracking-wide shadow-lg active:scale-95 transition-transform"
-          style={{fontWeight:700}}>
+          style={{ fontWeight: 700 }}>
           Start Assessment
         </button>
       </div>
@@ -171,7 +173,7 @@ function TipsScreen({ onNext }) {
       <GlobalStyle />
       <div className="flex items-center justify-between mb-6 fade-up">
         <div className="flex gap-2">
-          {[0,1].map(i => (
+          {[0, 1].map(i => (
             <div key={i} className="h-1.5 rounded-full transition-all duration-300"
               style={{ width: i === page ? 32 : 16, background: i === page ? '#1e6fa8' : '#e2e8f0' }} />
           ))}
@@ -204,13 +206,13 @@ function TipsScreen({ onNext }) {
         {page === 0 ? (
           <button onClick={() => setPage(1)}
             className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform"
-            style={{fontWeight:700}}>
+            style={{ fontWeight: 700 }}>
             Next
           </button>
         ) : (
           <button onClick={onNext}
             className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform"
-            style={{fontWeight:700}}>
+            style={{ fontWeight: 700 }}>
             Got It — Continue <ChevronRight className="inline w-4 h-4 ml-1" />
           </button>
         )}
@@ -226,18 +228,18 @@ function AutoRotationScreen({ onNext }) {
       <GlobalStyle />
       <div />
       <div className="flex flex-col items-center text-center fade-up">
-        <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8" style={{background:'#eef5fb'}}>
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8" style={{ background: '#eef5fb' }}>
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <path d="M8 20 A12 12 0 1 1 20 32" stroke="#1e6fa8" strokeWidth="2.5" strokeLinecap="round"/>
-            <path d="M8 26 L8 20 L14 20" stroke="#1e6fa8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1e6fa8" strokeWidth="2"/>
+            <path d="M8 20 A12 12 0 1 1 20 32" stroke="#1e6fa8" strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M8 26 L8 20 L14 20" stroke="#1e6fa8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1e6fa8" strokeWidth="2" />
           </svg>
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{fontWeight:700}}>Turn Off Auto-Rotation</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Turn Off Auto-Rotation</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
           Before we begin, please turn off your phone's auto-rotation feature.
         </p>
-        <div className="w-full rounded-2xl px-5 py-4" style={{background:'#eef5fb', border:'1px solid #b3d4ed'}}>
+        <div className="w-full rounded-2xl px-5 py-4" style={{ background: '#eef5fb', border: '1px solid #b3d4ed' }}>
           <p className="text-sm text-gray-600 text-center leading-relaxed">
             This ensures the camera stays in the correct orientation while you take photos.
           </p>
@@ -245,7 +247,7 @@ function AutoRotationScreen({ onNext }) {
       </div>
       <button onClick={onNext}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform"
-        style={{fontWeight:700}}>
+        style={{ fontWeight: 700 }}>
         Next
       </button>
     </div>
@@ -279,17 +281,17 @@ function PermissionsScreen({ onGranted }) {
       <div className="flex flex-col items-center text-center fade-up w-full max-w-sm">
         <div className="flex gap-5 mb-8">
           {[
-            { icon: <Camera className="w-7 h-7 ws-blue"/>, label: "Camera" },
-            { icon: <MapPin className="w-7 h-7 ws-blue"/>, label: "Location" },
+            { icon: <Camera className="w-7 h-7 ws-blue" />, label: "Camera" },
+            { icon: <MapPin className="w-7 h-7 ws-blue" />, label: "Location" },
           ].map(p => (
             <div key={p.label} className="flex-1 rounded-2xl py-6 flex flex-col items-center gap-2"
-              style={{background:'#eef5fb'}}>
+              style={{ background: '#eef5fb' }}>
               {p.icon}
               <span className="text-xs font-semibold text-gray-700">{p.label}</span>
             </div>
           ))}
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{fontWeight:700}}>Allow Access</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Allow Access</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6">
           We need camera and GPS permissions to capture and geo-tag your windshield photos.
         </p>
@@ -306,7 +308,7 @@ function PermissionsScreen({ onGranted }) {
       </div>
       <button onClick={request} disabled={status === "requesting"}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform disabled:opacity-60"
-        style={{fontWeight:700}}>
+        style={{ fontWeight: 700 }}>
         Grant Permissions
       </button>
     </div>
@@ -372,7 +374,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
           <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4 text-white" />
           </button>
-          <span className="text-white font-syne font-bold text-base flex-1" style={{fontWeight:700}}>{step.label}</span>
+          <span className="text-white font-syne font-bold text-base flex-1" style={{ fontWeight: 700 }}>{step.label}</span>
           <span className="text-white/50 text-xs">{stepIndex + 1}/{STEPS.length}</span>
         </div>
 
@@ -388,10 +390,10 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
       {!orientationOk && (
         <div className="absolute inset-0 z-20 bg-black/85 flex flex-col items-center justify-center px-8 text-center">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-            style={{background:'rgba(30,111,168,0.2)'}}>
-            <RotateCcw className="w-8 h-8" style={{color:'#7ec8f0'}} />
+            style={{ background: 'rgba(30,111,168,0.2)' }}>
+            <RotateCcw className="w-8 h-8" style={{ color: '#7ec8f0' }} />
           </div>
-          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{fontWeight:700}}>Rotate to Landscape</h3>
+          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>Rotate to Landscape</h3>
           <p className="text-white/60 text-sm">Hold your phone horizontally to capture the full windshield</p>
         </div>
       )}
@@ -402,63 +404,63 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
           {isCloseup ? (
             /* Closeup: tight portrait frame with crosshair */
             <div className="relative border-2 rounded-2xl flex items-center justify-center"
-              style={{width:'70%', height:'55%', borderColor:'rgba(30,111,168,0.6)'}}>
+              style={{ width: '70%', height: '55%', borderColor: 'rgba(30,111,168,0.6)' }}>
               {/* Corner marks */}
-              {[0,1,2,3].map(i => (
+              {[0, 1, 2, 3].map(i => (
                 <div key={i} style={{
-                  position:'absolute',
-                  width:20, height:20,
+                  position: 'absolute',
+                  width: 20, height: 20,
                   top: i < 2 ? -1 : 'auto', bottom: i >= 2 ? -1 : 'auto',
                   left: i % 2 === 0 ? -1 : 'auto', right: i % 2 === 1 ? -1 : 'auto',
                   borderTop: i < 2 ? '2px solid #2d9be0' : 'none',
                   borderBottom: i >= 2 ? '2px solid #2d9be0' : 'none',
                   borderLeft: i % 2 === 0 ? '2px solid #2d9be0' : 'none',
                   borderRight: i % 2 === 1 ? '2px solid #2d9be0' : 'none',
-                }}/>
+                }} />
               ))}
               {/* Crosshair dot */}
               <div className="w-4 h-4 rounded-full flex items-center justify-center"
-                style={{background:'rgba(45,155,224,0.3)', border:'2px solid #2d9be0'}}>
-                <div className="w-1.5 h-1.5 rounded-full" style={{background:'#2d9be0'}}/>
+                style={{ background: 'rgba(45,155,224,0.3)', border: '2px solid #2d9be0' }}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ background: '#2d9be0' }} />
               </div>
             </div>
           ) : needsLandscape ? (
             /* Wide windshield frame — trapezoidal hint */
             <div className="relative border-2 rounded-2xl"
-              style={{width:'88%', height:'52%', borderColor:'rgba(30,111,168,0.6)'}}>
-              {[0,1,2,3].map(i => (
+              style={{ width: '88%', height: '52%', borderColor: 'rgba(30,111,168,0.6)' }}>
+              {[0, 1, 2, 3].map(i => (
                 <div key={i} style={{
-                  position:'absolute',
-                  width:20, height:20,
+                  position: 'absolute',
+                  width: 20, height: 20,
                   top: i < 2 ? -1 : 'auto', bottom: i >= 2 ? -1 : 'auto',
                   left: i % 2 === 0 ? -1 : 'auto', right: i % 2 === 1 ? -1 : 'auto',
                   borderTop: i < 2 ? '2px solid #2d9be0' : 'none',
                   borderBottom: i >= 2 ? '2px solid #2d9be0' : 'none',
                   borderLeft: i % 2 === 0 ? '2px solid #2d9be0' : 'none',
                   borderRight: i % 2 === 1 ? '2px solid #2d9be0' : 'none',
-                }}/>
+                }} />
               ))}
               {/* Plate tag reminder */}
               <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/10 rounded-lg px-2 py-1 backdrop-blur-sm">
-                <div className="w-2 h-2 rounded-full bg-yellow-400"/>
+                <div className="w-2 h-2 rounded-full bg-yellow-400" />
                 <span className="text-white text-xs">Plate must be visible</span>
               </div>
             </div>
           ) : (
             /* Standard portrait frame */
             <div className="relative border-2 rounded-2xl"
-              style={{width:'65%', height:'65%', borderColor:'rgba(30,111,168,0.6)'}}>
-              {[0,1,2,3].map(i => (
+              style={{ width: '65%', height: '65%', borderColor: 'rgba(30,111,168,0.6)' }}>
+              {[0, 1, 2, 3].map(i => (
                 <div key={i} style={{
-                  position:'absolute',
-                  width:20, height:20,
+                  position: 'absolute',
+                  width: 20, height: 20,
                   top: i < 2 ? -1 : 'auto', bottom: i >= 2 ? -1 : 'auto',
                   left: i % 2 === 0 ? -1 : 'auto', right: i % 2 === 1 ? -1 : 'auto',
                   borderTop: i < 2 ? '2px solid #2d9be0' : 'none',
                   borderBottom: i >= 2 ? '2px solid #2d9be0' : 'none',
                   borderLeft: i % 2 === 0 ? '2px solid #2d9be0' : 'none',
                   borderRight: i % 2 === 1 ? '2px solid #2d9be0' : 'none',
-                }}/>
+                }} />
               ))}
             </div>
           )}
@@ -478,7 +480,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
         <p className="text-white/70 text-xs text-center mb-4">{step.instruction}</p>
         <button onClick={capture} disabled={!streamReady || !orientationOk}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 transition-transform ws-blue-bg"
-          style={{fontWeight:700}}>
+          style={{ fontWeight: 700 }}>
           <Camera className="w-4 h-4" />
           Capture {step.label} ({stepIndex + 1}/{STEPS.length})
         </button>
@@ -491,7 +493,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
 function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitting }) {
   // Separate windshield steps for visual grouping
   const docPhotos = photos.filter(p => p.sideId === "license_plate" || p.sideId === "chassis_no");
-  const wsPhotos  = photos.filter(p => p.sideId === "windshield_plate" || p.sideId === "windshield_damage");
+  const wsPhotos = photos.filter(p => p.sideId === "windshield_plate" || p.sideId === "windshield_damage");
 
   const PhotoCard = ({ photo, index }) => (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
@@ -499,7 +501,7 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
         <div>
           <span className="font-semibold text-gray-800 text-sm block">{photo.label}</span>
           {(photo.sideId === "windshield_plate" || photo.sideId === "windshield_damage") && (
-            <span className="text-xs" style={{color:'#1e6fa8'}}>Windshield</span>
+            <span className="text-xs" style={{ color: '#1e6fa8' }}>Windshield</span>
           )}
         </div>
         <button onClick={() => onRetakeSingle(index)}
@@ -508,7 +510,7 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
         </button>
       </div>
       <div className="mx-4 mb-4 rounded-xl overflow-hidden aspect-video bg-black"
-        style={{border: (photo.sideId === "windshield_plate" || photo.sideId === "windshield_damage") ? '2px solid #1e6fa8' : '2px solid #1a8a3c'}}>
+        style={{ border: (photo.sideId === "windshield_plate" || photo.sideId === "windshield_damage") ? '2px solid #1e6fa8' : '2px solid #1a8a3c' }}>
         <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
       </div>
     </div>
@@ -522,7 +524,7 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
         <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ws-blue-bg">
           <CheckCircle className="w-7 h-7 text-white" />
         </div>
-        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{fontWeight:700}}>Review Your Photos</h2>
+        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{ fontWeight: 700 }}>Review Your Photos</h2>
         <p className="text-gray-500 text-sm">Ensure all photos are clear before submitting</p>
       </div>
 
@@ -546,12 +548,12 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
       <div className="px-5 mt-6 space-y-3">
         <button onClick={onSubmit} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
-          style={{fontWeight:700}}>
+          style={{ fontWeight: 700 }}>
           {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting…</> : 'Submit Claim'}
         </button>
         <button onClick={onRetakeAll} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-gray-700 font-syne font-semibold text-base bg-white border border-gray-200 active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
-          style={{fontWeight:600}}>
+          style={{ fontWeight: 600 }}>
           <RotateCcw className="w-4 h-4" /> Retake All Photos
         </button>
       </div>
@@ -567,18 +569,18 @@ function SuccessScreen({ reqId }) {
       <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 fade-up ws-blue-bg">
         <Check className="w-10 h-10 text-white" />
       </div>
-      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{fontWeight:700}}>Claim Submitted</h2>
+      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>Claim Submitted</h2>
       <p className="text-gray-500 text-sm leading-relaxed mb-3 fade-up-1">
         Your windshield claim has been submitted successfully. Our team will assess the damage and get back to you shortly.
       </p>
       <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-8 fade-up-1"
-        style={{background:'#eef5fb', border:'1px solid #b3d4ed'}}>
+        style={{ background: '#eef5fb', border: '1px solid #b3d4ed' }}>
         <WindshieldIcon size={14} color="#1e6fa8" />
         <span className="text-xs font-semibold ws-blue">Windshield Claim</span>
       </div>
       <div className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 fade-up-2">
         <p className="text-xs text-gray-400 mb-1">Claim Reference</p>
-        <p className="font-syne font-bold text-gray-800 text-lg tracking-wider" style={{fontWeight:700}}>{reqId}</p>
+        <p className="font-syne font-bold text-gray-800 text-lg tracking-wider" style={{ fontWeight: 700 }}>{reqId}</p>
         <p className="text-xs text-gray-400 mt-1">Keep this reference to track your windshield claim</p>
       </div>
     </div>
@@ -593,6 +595,13 @@ export default function WindshieldClaim() {
   const [retakeIndex, setRetakeIndex] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reqId] = useState(() => "WS-" + Date.now().toString(36).toUpperCase());
+
+  // Results state
+  const [inspectionId, setInspectionId] = useState(null);
+  const [damageResults, setDamageResults] = useState(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState(null);
+  const [ocrData, setOcrData] = useState(null);
 
   const handleCapture = (dataUrl) => {
     const idx = retakeIndex !== null ? retakeIndex : captureIndex;
@@ -632,17 +641,85 @@ export default function WindshieldClaim() {
     setScreen("camera");
   };
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setIsSubmitting(false);
-    setScreen("success");
+  // Helper: convert dataUrl to Blob
+  const dataUrlToBlob = (dataUrl) => {
+    const [header, data] = dataUrl.split(",");
+    const mime = header.match(/:(.*?);/)[1];
+    const bytes = atob(data);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new Blob([arr], { type: mime });
   };
 
-  if (screen === "landing")      return <Landing onStart={() => setScreen("tips")} />;
-  if (screen === "tips")         return <TipsScreen onNext={() => setScreen("autorotation")} />;
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setResultsLoading(true);
+    setResultsError(null);
+    setDamageResults(null);
+    setOcrData(null);
+
+    try {
+      // Upload all photos via OCR endpoint
+      // Get unique_id from URL search params if available
+      const urlParams = new URLSearchParams(window.location.search);
+      const uniqueId = urlParams.get('unique_id') || urlParams.get('id') || '';
+
+      let uploadedId = inspectionId;
+
+      for (const photo of photos) {
+        if (!photo?.dataUrl) continue;
+        const blob = dataUrlToBlob(photo.dataUrl);
+        const imageFile = new File([blob], `${photo.sideId}.jpg`, { type: "image/jpeg" });
+
+        const formData = new FormData();
+        if (uniqueId) formData.append("unique_id", uniqueId);
+        formData.append("type", photo.sideId);
+        formData.append("image", imageFile);
+
+        try {
+          const res = await uploadInspectionOcr(formData);
+          // Capture the inspection ID from upload response if available
+          if (res?.id && !uploadedId) {
+            uploadedId = res.id;
+            setInspectionId(res.id);
+          }
+          if (res?.inspection_id && !uploadedId) {
+            uploadedId = res.inspection_id;
+            setInspectionId(res.inspection_id);
+          }
+        } catch {
+          // swallow — individual upload failures shouldn't block the flow
+        }
+      }
+
+      // Fetch damage results if we have an inspection ID
+      if (uploadedId) {
+        try {
+          const results = await getDamageResults(uploadedId);
+          setDamageResults(results);
+          // Also set the results as ocrData for the WindShieldAssessmentResult component
+          if (Array.isArray(results)) {
+            setOcrData(results);
+          }
+        } catch (err) {
+          console.error('Failed to fetch damage results:', err);
+          setResultsError(err?.message || 'Failed to fetch assessment results');
+        }
+      }
+    } catch (err) {
+      console.error('Submit error:', err);
+      setResultsError(err?.message || 'Submission failed');
+    } finally {
+      setResultsLoading(false);
+      setIsSubmitting(false);
+      setScreen("results");
+    }
+  };
+
+  if (screen === "landing") return <Landing onStart={() => setScreen("tips")} />;
+  if (screen === "tips") return <TipsScreen onNext={() => setScreen("autorotation")} />;
   if (screen === "autorotation") return <AutoRotationScreen onNext={() => setScreen("permissions")} />;
-  if (screen === "permissions")  return (
+  if (screen === "permissions") return (
     <PermissionsScreen onGranted={() => { setCaptureIndex(0); setPhotos([]); setScreen("camera"); }} />
   );
   if (screen === "camera") return (
@@ -665,5 +742,20 @@ export default function WindshieldClaim() {
       isSubmitting={isSubmitting}
     />
   );
-  if (screen === "success") return <SuccessScreen reqId={reqId} />;
+  if (screen === "results") return (
+    <WindShieldAssessmentResult
+      inspectionRow={{
+        name: "—",
+        email: "—",
+        policy: "—",
+        status: "Submitted",
+        damage: damageResults?.damage_level || damageResults?.damage || null,
+      }}
+      ocrData={ocrData}
+      windshieldData={damageResults}
+      ocrLoading={resultsLoading}
+      ocrError={resultsError}
+      onBack={() => setScreen("review")}
+    />
+  );
 }

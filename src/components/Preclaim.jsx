@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2 } from "lucide-react";
-import { verifyInspectionLink, uploadInspectionOcr } from "../api";
+import { verifyInspectionLink, uploadInspectionOcr, getDamageResults } from "../api";
 import VehicleSideCapture from "./VehicleSideCapture";
 
 // ─── STEPS ───────────────────────────────────────────────────────────────────
@@ -463,22 +463,152 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
   );
 }
 
-// ─── SCREEN 7 : SUCCESS ───────────────────────────────────────────────────────
-function SuccessScreen({ reqId }) {
+// ─── SCREEN 7 : ASSESSMENT RESULTS ────────────────────────────────────────────
+function AssessmentResults({ photos, damageResults, reqId, isLoading, error }) {
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center">
+    <div className="min-h-screen bg-gray-50 pb-10">
       <GlobalStyle />
-      <div className="w-20 h-20 rounded-full kfh-bg flex items-center justify-center mb-6 fade-up">
-        <Check className="w-10 h-10 text-white" />
+
+      {/* Header */}
+      <div className="bg-white px-6 pt-10 pb-6 text-center shadow-sm">
+        <div className="w-14 h-14 rounded-full kfh-bg flex items-center justify-center mx-auto mb-4 fade-up">
+          <CheckCircle className="w-7 h-7 text-white" />
+        </div>
+        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1 fade-up-1" style={{ fontWeight: 700 }}>Assessment Results</h2>
+        <p className="text-gray-500 text-sm fade-up-1">Your vehicle inspection has been analyzed</p>
+        <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 fade-up-2">
+          <p className="text-[10px] text-gray-400 mb-0.5">Request ID</p>
+          <p className="font-syne font-bold text-gray-700 text-sm tracking-wider" style={{ fontWeight: 700 }}>{reqId}</p>
+        </div>
       </div>
-      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>Assessment Submitted</h2>
-      <p className="text-gray-500 text-sm leading-relaxed mb-8 fade-up-1">
-        Your vehicle inspection photos have been successfully submitted. Our team will review and get back to you shortly.
-      </p>
-      <div className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 fade-up-2">
-        <p className="text-xs text-gray-400 mb-1">Request ID</p>
-        <p className="font-syne font-bold text-gray-800 text-lg tracking-wider" style={{ fontWeight: 700 }}>{reqId}</p>
-        <p className="text-xs text-gray-400 mt-1">Keep this ID to track your assessment</p>
+
+      {/* Photos — License Plate & Chassis */}
+      <div className="px-5 mt-5 space-y-4 fade-up-1">
+        {photos.filter(p => p.sideId === 'license_plate' || p.sideId === 'chassis_no').map((photo) => (
+          <div key={photo.sideId} className="bg-white rounded-2xl overflow-hidden shadow-sm">
+            <div className="flex items-center gap-2 px-4 py-3">
+              <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />
+              <span className="font-semibold text-gray-800 text-sm">{photo.label}</span>
+            </div>
+            <div className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black">
+              <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Damage Results Section */}
+      <div className="px-5 mt-6 fade-up-2">
+        <div className="flex items-center gap-2 mb-4">
+          <Shield className="w-5 h-5" style={{ color: '#1a8a3c' }} />
+          <h3 className="font-syne text-base font-bold text-gray-900" style={{ fontWeight: 700 }}>Damage Analysis</h3>
+        </div>
+
+        {isLoading && (
+          <div className="bg-white rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#1a8a3c' }} />
+            <p className="text-sm text-gray-500">Analyzing vehicle damage…</p>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+              <span className="text-sm font-semibold text-red-600">Failed to load results</span>
+            </div>
+            <p className="text-xs text-red-500">{error}</p>
+          </div>
+        )}
+
+        {!isLoading && !error && damageResults && (
+          <div className="space-y-4">
+            {/* Vehicle side photos with damage results */}
+            {photos.filter(p => p.sideId !== 'license_plate' && p.sideId !== 'chassis_no').map((photo) => {
+              // Find damage result for this side
+              const sideResult = Array.isArray(damageResults)
+                ? damageResults.find(r => r.side === photo.sideId || r.type === photo.sideId)
+                : null;
+
+              return (
+                <div key={photo.sideId} className="bg-white rounded-2xl overflow-hidden shadow-sm">
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />
+                      <span className="font-semibold text-gray-800 text-sm">{photo.label}</span>
+                    </div>
+                    {sideResult && (
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${sideResult.damage_detected || sideResult.has_damage
+                          ? 'bg-red-50 text-red-600 border border-red-200'
+                          : 'bg-green-50 text-green-600 border border-green-200'
+                        }`}>
+                        {sideResult.damage_detected || sideResult.has_damage ? '⚠ Damage Found' : '✓ No Damage'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mx-4 mb-3 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black">
+                    <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+                  </div>
+
+                  {/* Damage details for this side */}
+                  {sideResult && (
+                    <div className="mx-4 mb-4">
+                      {/* Damages list */}
+                      {sideResult.damages && Array.isArray(sideResult.damages) && sideResult.damages.length > 0 ? (
+                        <div className="space-y-2">
+                          {sideResult.damages.map((dmg, di) => (
+                            <div key={di} className="bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-800">
+                                  {dmg.type || dmg.damage_type || dmg.label || 'Damage'}
+                                </span>
+                                {(dmg.confidence || dmg.score) && (
+                                  <span className="text-xs text-gray-500">
+                                    {Math.round((dmg.confidence || dmg.score) * 100)}% confidence
+                                  </span>
+                                )}
+                              </div>
+                              {(dmg.severity || dmg.description) && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {dmg.severity && <span className="font-medium">Severity: {dmg.severity} </span>}
+                                  {dmg.description}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-2.5">
+                          <span className="text-sm text-green-700">No damage detected on this side</span>
+                        </div>
+                      )}
+
+                      {/* Any extra fields from the result */}
+                      {sideResult.summary && (
+                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">{sideResult.summary}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Overall summary if present */}
+            {damageResults.summary && (
+              <div className="bg-white rounded-2xl shadow-sm px-5 py-4">
+                <h4 className="font-syne font-bold text-sm text-gray-900 mb-2" style={{ fontWeight: 700 }}>Overall Summary</h4>
+                <p className="text-sm text-gray-600 leading-relaxed">{damageResults.summary}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Fallback: if no damageResults but also not loading/error, show raw response placeholder */}
+        {!isLoading && !error && !damageResults && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
+            <p className="text-sm text-gray-400">No damage analysis results available yet.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -494,6 +624,10 @@ export default function App() {
   const [wsPhotos, setWsPhotos] = useState([]); // WebSocket-captured side photos
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reqId] = useState(() => "KFH-" + Date.now().toString(36).toUpperCase());
+  const [inspectionId, setInspectionId] = useState(null); // ID from verify-link response
+  const [damageResults, setDamageResults] = useState(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState(null);
 
   // ── Auth check ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -505,7 +639,12 @@ export default function App() {
         const res = await verifyInspectionLink({ user_id: Number(user_id), unique_id });
         if (cancelled) return;
         if (res?.is_expired) setAuthState("expired");
-        else if (res?.is_verified) setAuthState("ok");
+        else if (res?.is_verified) {
+          setAuthState("ok");
+          // Store the inspection ID for the damage-results API
+          if (res.id) setInspectionId(res.id);
+          else if (res.inspection_id) setInspectionId(res.inspection_id);
+        }
         else setAuthState("failed");
       } catch { if (!cancelled) setAuthState("failed"); }
     };
@@ -579,9 +718,23 @@ export default function App() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setIsSubmitting(false);
-    setScreen("success");
+    setResultsLoading(true);
+    setResultsError(null);
+    setDamageResults(null);
+
+    try {
+      if (inspectionId) {
+        const results = await getDamageResults(inspectionId);
+        setDamageResults(results);
+      }
+    } catch (err) {
+      console.error('Failed to fetch damage results:', err);
+      setResultsError(err?.message || 'Failed to fetch assessment results');
+    } finally {
+      setResultsLoading(false);
+      setIsSubmitting(false);
+      setScreen("results");
+    }
   };
 
   // ── Auth gates ────────────────────────────────────────────────────────────────
@@ -652,5 +805,13 @@ export default function App() {
       isSubmitting={isSubmitting}
     />
   );
-  if (screen === "success") return <SuccessScreen reqId={reqId} />;
+  if (screen === "results") return (
+    <AssessmentResults
+      photos={allPhotos}
+      damageResults={damageResults}
+      reqId={reqId}
+      isLoading={resultsLoading}
+      error={resultsError}
+    />
+  );
 }

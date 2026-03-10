@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
+import PrePolicyAssessmentResult from "../pages/Pre-policy";
 import WindShieldAssessmentResult from "../pages/WindsheildClaim";
-import { listInspections, getInspectionOcr } from "../api";
+import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults } from "../api";
 
 // ---- Icons ----
 const KFHLogo = () => (
@@ -352,10 +353,29 @@ export default function App() {
   const openOcrForRow = async (row) => {
     if (!row?.id) return;
     // Show the detail page immediately with loading state
-    setDetailView({ row, ocrData: null, ocrLoading: true, ocrError: "" });
+    setDetailView({ row, ocrData: null, damageData: null, windshieldData: null, ocrLoading: true, ocrError: "", tab: activeTab });
     try {
-      const data = await getInspectionOcr(row.id);
-      setDetailView((prev) => prev ? { ...prev, ocrData: data, ocrLoading: false } : null);
+      const isWindshield = activeTab === "wind";
+      // Fetch OCR data and results API in parallel
+      const [ocrData, resultsData] = await Promise.allSettled([
+        getInspectionOcr(row.id),
+        isWindshield ? getWindshieldResults(row.id) : getDamageResults(row.id),
+      ]);
+
+      const ocr = ocrData.status === "fulfilled" ? ocrData.value : null;
+      const results = resultsData.status === "fulfilled" ? resultsData.value : null;
+      const ocrErr = ocrData.status === "rejected"
+        ? (ocrData.reason?.data?.detail || ocrData.reason?.message || "Unable to load inspection details.")
+        : "";
+
+      setDetailView((prev) => prev ? {
+        ...prev,
+        ocrData: ocr,
+        damageData: isWindshield ? null : results,
+        windshieldData: isWindshield ? results : null,
+        ocrLoading: false,
+        ocrError: ocrErr,
+      } : null);
     } catch (err) {
       const msg =
         err?.data?.detail ||
@@ -366,12 +386,27 @@ export default function App() {
     }
   };
 
-  // ── Detail View (WindShield Assessment Result page) ─────────────────────────
+  // ── Detail View ─────────────────────────────────────────────────────────────
   if (detailView) {
+    // Windshield tab → WindShieldAssessmentResult with windshield-results
+    if (detailView.tab === "wind") {
+      return (
+        <WindShieldAssessmentResult
+          inspectionRow={detailView.row}
+          ocrData={detailView.ocrData}
+          windshieldData={detailView.windshieldData}
+          ocrLoading={detailView.ocrLoading}
+          ocrError={detailView.ocrError}
+          onBack={() => setDetailView(null)}
+        />
+      );
+    }
+    // Pre-policy / Motor tabs → PrePolicyAssessmentResult with damage-results
     return (
-      <WindShieldAssessmentResult
+      <PrePolicyAssessmentResult
         inspectionRow={detailView.row}
         ocrData={detailView.ocrData}
+        damageData={detailView.damageData}
         ocrLoading={detailView.ocrLoading}
         ocrError={detailView.ocrError}
         onBack={() => setDetailView(null)}

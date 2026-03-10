@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { editInspectionOcr } from "../api";
 
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
 function ImageEditorModal({ imageUrl, onClose, onSave }) {
@@ -13,15 +14,34 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = imageUrl;
-    img.onload = () => {
-      canvas.width = img.naturalWidth || 700;
-      canvas.height = img.naturalHeight || 400;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      setHistory([canvas.toDataURL()]);
-    };
+
+    // Fetch image as blob to bypass CORS restrictions
+    fetch(imageUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        const objectUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.naturalWidth || 700;
+          canvas.height = img.naturalHeight || 400;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          setHistory([canvas.toDataURL()]);
+          URL.revokeObjectURL(objectUrl);
+        };
+        img.src = objectUrl;
+      })
+      .catch(() => {
+        // Fallback: try direct load
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = imageUrl;
+        img.onload = () => {
+          canvas.width = img.naturalWidth || 700;
+          canvas.height = img.naturalHeight || 400;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          setHistory([canvas.toDataURL()]);
+        };
+      });
   }, [imageUrl]);
 
   const getPos = (e) => {
@@ -184,13 +204,136 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
   );
 }
 
-// ─── Field Row ─────────────────────────────────────────────────────────────────
+// ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
+function FullscreenImageModal({ imageUrl, label, onClose }) {
+  if (!imageUrl) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center" onClick={onClose}>
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      {label && (
+        <div className="absolute top-5 left-5 bg-black/60 px-4 py-2 rounded-xl">
+          <span className="text-white text-sm font-semibold">{label}</span>
+        </div>
+      )}
+      <img
+        src={imageUrl}
+        alt={label || "Full screen"}
+        className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+// ─── Field Row ────────────────────────────────────────────────────────────────────
 function FieldRow({ label, value, wide }) {
   return (
     <div className={`flex items-center gap-4 ${wide ? "col-span-2" : ""}`}>
       <span className="text-sm font-medium text-gray-600 w-40 shrink-0">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 min-h-[40px]">
         {value || <span className="text-gray-400">—</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Editable Field Row (with inline edit + API save) ────────────────────────────
+function EditableFieldRow({ label, value, mediaId, onSaved }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) inputRef.current.focus();
+  }, [isEditing]);
+
+  const handleSave = async () => {
+    if (!mediaId) return;
+    setSaving(true);
+    setError("");
+    try {
+      await editInspectionOcr(mediaId, editValue);
+      setIsEditing(false);
+      if (onSaved) onSaved(editValue);
+    } catch (err) {
+      setError(err?.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditValue(value || "");
+    setIsEditing(false);
+    setError("");
+  };
+
+  if (!isEditing) {
+    return (
+      <div className="flex items-center gap-4">
+        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">{label}</span>
+        <div className="flex-1 bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 min-h-[40px] flex items-center justify-between">
+          <span>{editValue || value || <span className="text-gray-400">—</span>}</span>
+          {mediaId && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="no-print ml-2 p-1 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+              title="Edit"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-4">
+      <span className="text-sm font-medium text-gray-600 w-40 shrink-0 mt-2.5">{label}</span>
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") handleCancel(); }}
+            className="flex-1 border border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 outline-none transition-all"
+            disabled={saving}
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-3 py-2 rounded-lg text-xs font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+          >
+            {saving ? (
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : 'Save'}
+          </button>
+          <button
+            onClick={handleCancel}
+            disabled={saving}
+            className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
     </div>
   );
@@ -227,9 +370,11 @@ function ImageSkeleton() {
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocrLoading, ocrError, onBack }) {
+export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack }) {
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
+  const [editedWsImages, setEditedWsImages] = useState({});
+  const [fullscreenImage, setFullscreenImage] = useState(null); // { url, label }
   const printRef = useRef(null);
 
   const handleExportPDF = () => {
@@ -237,7 +382,11 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
   };
 
   const handleSaveEdit = (dataUrl) => {
-    setEditedAiImage(dataUrl);
+    if (editingImage?.wsIndex !== undefined) {
+      setEditedWsImages(prev => ({ ...prev, [editingImage.wsIndex]: dataUrl }));
+    } else {
+      setEditedAiImage(dataUrl);
+    }
   };
 
   // Extract data from props — inspectionRow has customer/row info, ocrData has OCR results
@@ -265,10 +414,17 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
 
   const buildImageUrl = (entry) => {
     if (!entry?.image) return null;
-    // If already absolute, use as-is; otherwise prepend base URL
     if (entry.image.startsWith("http")) return entry.image;
     return `${IMAGE_BASE}${entry.image}`;
   };
+
+  // Helper to build full URL from relative paths (for damage results)
+  const buildUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith("http")) return path;
+    return `${IMAGE_BASE}${path}`;
+  };
+
 
   const licensePlateText = licensePlateEntry?.detected_text || "—";
   const chassisNumberText = chassisEntry?.detected_text || "—";
@@ -303,7 +459,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
           </button>
 
           <h1 className="text-sm font-bold tracking-widest uppercase text-gray-800">
-            Wind Shield Assessment Result
+            Windshield Claim Assessment
           </h1>
 
           <button
@@ -367,7 +523,8 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
               {/* License */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 mb-3">License Number</h3>
-                <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video">
+                <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
+                  onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate' })}>
                   {licensePlateImage ? (
                     <img src={licensePlateImage} alt="License plate" className="w-full h-full object-cover" />
                   ) : (
@@ -378,13 +535,18 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
                     </div>
                   )}
                 </div>
-                <FieldRow label="License Number" value={licensePlateText} />
+                <EditableFieldRow
+                  label="License Number"
+                  value={licensePlateText}
+                  mediaId={licensePlateEntry?.id}
+                />
               </div>
 
               {/* Chassis */}
               <div>
                 <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
-                <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video">
+                <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
+                  onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number' })}>
                   {chassisImage ? (
                     <img src={chassisImage} alt="Chassis number" className="w-full h-full object-cover" />
                   ) : (
@@ -395,61 +557,46 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
                     </div>
                   )}
                 </div>
-                <FieldRow label="Chassis Number" value={chassisNumberText} />
+                <EditableFieldRow
+                  label="Chassis Number"
+                  value={chassisNumberText}
+                  mediaId={chassisEntry?.id}
+                />
               </div>
             </div>
           )}
         </SectionCard>
 
-        {/* Wind Shield Section */}
-        <SectionCard>
-          <h3 className="text-sm font-bold text-gray-900 mb-4">Wind Shield</h3>
+        {/* Wind Shield Section — only show when windshield OCR data exists */}
+        {!ocrLoading && (windshieldOriginal || windshieldAi || windshieldDamageText || inspectionRow?.damage) && (
+          <SectionCard>
+            <h3 className="text-sm font-bold text-gray-900 mb-4">Wind Shield</h3>
 
-          {ocrLoading ? (
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              <ImageSkeleton />
-              <ImageSkeleton />
-            </div>
-          ) : (
             <div className="grid grid-cols-2 gap-6 mb-6">
               {/* Original */}
-              <div>
-                <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video">
-                  {windshieldOriginal ? (
+              {windshieldOriginal && (
+                <div>
+                  <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
+                    onClick={() => setFullscreenImage({ url: windshieldOriginal, label: 'Original Windshield' })}>
                     <img src={windshieldOriginal} alt="Original windshield" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                      </svg>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2">
+                      <span className="text-white text-xs font-medium">Original Image</span>
                     </div>
-                  )}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2">
-                    <span className="text-white text-xs font-medium">Original Image</span>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Windshield Damage */}
-              <div>
-                <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group">
-                  {editedAiImage ? (
-                    <img src={editedAiImage} alt="AI result edited" className="w-full h-full object-cover" />
-                  ) : windshieldAi ? (
-                    <img src={windshieldAi} alt="Windshield damage" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <svg className="w-12 h-12" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                      </svg>
-                    </div>
-                  )}
+              {(windshieldAi || editedAiImage) && (
+                <div>
+                  <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
+                    onClick={() => setFullscreenImage({ url: editedAiImage || windshieldAi, label: 'Windshield Damage' })}>
+                    <img src={editedAiImage || windshieldAi} alt="Windshield damage" className="w-full h-full object-cover" />
 
-                  <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2 flex items-center justify-between">
-                    <span className="text-white text-xs font-medium">Windshield Damage</span>
-                    {(windshieldAi || editedAiImage) && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2 flex items-center justify-between">
+                      <span className="text-white text-xs font-medium">Windshield Damage</span>
                       <button
-                        onClick={() => setEditingImage(windshieldAi)}
+                        onClick={(e) => { e.stopPropagation(); setEditingImage(windshieldAi); }}
                         className="no-print flex items-center gap-1.5 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -457,44 +604,165 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, ocr
                         </svg>
                         Edit Result
                       </button>
-                    )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Detected text from windshield damage if available */}
+            {windshieldDamageText && (
+              <div className="mt-4">
+                <FieldRow label="Damage Detection" value={windshieldDamageText} />
+              </div>
+            )}
+
+            {/* Damage details from inspection row */}
+            {inspectionRow?.damage && (
+              <div className="grid grid-cols-2 gap-10 mt-4">
+                <div>
+                  <p className="text-sm font-bold text-gray-900 mb-2">Damage Level</p>
+                  <div className="bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full inline-block ${inspectionRow.damage === "Major Damage" ? "bg-red-500" :
+                      inspectionRow.damage === "Minor Damage" ? "bg-orange-400" : "bg-gray-400"
+                      }`} />
+                    {inspectionRow.damage}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </SectionCard>
+        )}
 
-          {/* Detected text from windshield damage if available */}
-          {!ocrLoading && windshieldDamageText && (
-            <div className="mt-4">
-              <FieldRow label="Damage Detection" value={windshieldDamageText} />
-            </div>
-          )}
+        {/* Windshield Results */}
+        {windshieldData && (
+          <SectionCard title="Windshield Assessment Results">
+            {(() => {
+              const wsData = windshieldData;
+              const closeupUrl = buildUrl(wsData.closeup_image);
+              const plateUrl = editedWsImages[0] || buildUrl(wsData.plate_image);
+              const aiResult = wsData.ai_result || "";
+              const isMajor = aiResult.toLowerCase().includes("major");
+              const isMinor = aiResult.toLowerCase().includes("minor");
+              const hasDamage = isMajor || isMinor || (aiResult && !aiResult.toLowerCase().includes("no"));
 
-          {/* Damage details from inspection row */}
-          {!ocrLoading && inspectionRow?.damage && (
-            <div className="grid grid-cols-2 gap-10 mt-4">
-              <div>
-                <p className="text-sm font-bold text-gray-900 mb-2">Damage Level</p>
-                <div className="bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full inline-block ${inspectionRow.damage === "Major Damage" ? "bg-red-500" :
-                    inspectionRow.damage === "Minor Damage" ? "bg-orange-400" : "bg-gray-400"
-                    }`} />
-                  {inspectionRow.damage}
+              return (
+                <div className="border border-gray-100 rounded-2xl p-5">
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold ${isMajor ? 'bg-red-500' : isMinor ? 'bg-orange-400' : hasDamage ? 'bg-yellow-500' : 'bg-green-500'
+                        }`}>
+                        W
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900">Windshield Inspection</h4>
+                        <span className={`text-xs font-semibold ${isMajor ? 'text-red-500' : isMinor ? 'text-orange-500' : hasDamage ? 'text-yellow-600' : 'text-green-600'
+                          }`}>
+                          {hasDamage ? '⚠ Damage Detected' : '✓ No Damage'}
+                        </span>
+                      </div>
+                    </div>
+                    {wsData.inspection_id && (
+                      <span className="text-xs text-gray-400">ID: {wsData.inspection_id}</span>
+                    )}
+                  </div>
+
+                  {/* Closeup & Plate Images side by side */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    {/* Closeup Image */}
+                    <div>
+                      <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
+                        onClick={() => closeupUrl && setFullscreenImage({ url: closeupUrl, label: 'Windshield Closeup' })}>
+                        {closeupUrl ? (
+                          <img src={closeupUrl} alt="Windshield Closeup" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                            </svg>
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-3 py-1.5">
+                          <span className="text-white text-xs font-medium">Closeup Image</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Plate / AI Image */}
+                    <div>
+                      <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
+                        onClick={() => plateUrl && setFullscreenImage({ url: plateUrl, label: 'Windshield Plate' })}>
+                        {plateUrl ? (
+                          <img src={plateUrl} alt="Windshield Plate" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                            </svg>
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-3 py-1.5 flex items-center justify-between">
+                          <span className="text-white text-xs font-medium">Plate Image</span>
+                          {plateUrl && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingImage({ url: buildUrl(wsData.plate_image), wsIndex: 0 }); }}
+                              className="no-print flex items-center gap-1 px-2 py-0.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-md transition-colors"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                              </svg>
+                              Edit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Result */}
+                  {aiResult && (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">AI Result</span>
+                        <div className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center gap-2 ${isMajor
+                          ? 'bg-red-50 text-red-700 border border-red-200'
+                          : isMinor
+                            ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                            : hasDamage
+                              ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                              : 'bg-green-50 text-green-700 border border-green-200'
+                          }`}>
+                          <span className={`w-2.5 h-2.5 rounded-full ${isMajor ? 'bg-red-500' : isMinor ? 'bg-orange-400' : hasDamage ? 'bg-yellow-500' : 'bg-green-500'
+                            }`} />
+                          {aiResult.charAt(0).toUpperCase() + aiResult.slice(1)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            </div>
-          )}
-        </SectionCard>
+              );
+            })()}
+          </SectionCard>
+        )}
 
       </div>
 
       {/* Editor Modal */}
       {editingImage && (
         <ImageEditorModal
-          imageUrl={editingImage}
+          imageUrl={typeof editingImage === 'string' ? editingImage : editingImage.url}
           onClose={() => setEditingImage(null)}
           onSave={handleSaveEdit}
+        />
+      )}
+
+      {/* Fullscreen Image Viewer */}
+      {fullscreenImage && (
+        <FullscreenImageModal
+          imageUrl={fullscreenImage.url}
+          label={fullscreenImage.label}
+          onClose={() => setFullscreenImage(null)}
         />
       )}
     </div>

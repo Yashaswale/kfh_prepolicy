@@ -14,5 +14,8 @@ export const ENDPOINTS = {
   accountSummary: '/customers/account-summary/',
   inspectionOcrBase: '/customers/inspection',
   uploadInspectionOcr: '/customers/inspection/upload-ocr/',
+  editOcrBase: '/customers/inspection/edit-ocr',
+  damageResultsBase: '/customers/inspection',
+  windshieldResultsBase: '/customers/inspection/windshield-results',
 };
 
