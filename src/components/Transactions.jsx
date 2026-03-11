@@ -93,9 +93,11 @@ export default function Dashboard() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [sortBy, setSortBy] = useState("Last Updated");
+  const [sortBy, setSortBy] = useState("Newest First");
   const [showEntries, setShowEntries] = useState(15);
   const [page, setPage] = useState(1);
+  const [serverTotalPages, setServerTotalPages] = useState(1);
+  const [serverTotalCount, setServerTotalCount] = useState(0);
   const [selected, setSelected] = useState(new Set());
   const [chartData, setChartData] = useState([]);
   const [summary, setSummary] = useState({
@@ -132,7 +134,7 @@ export default function Dashboard() {
         setSummary({
           total_links_sent: data.total_links_sent ?? 0,
           total_clicks: data.total_clicks ?? 0,
-          total_opens: data.total_opens ?? 0,
+          total_opens: data.total_completed ?? 0,
           not_clicked: data.not_clicked ?? 0,
         });
 
@@ -172,17 +174,29 @@ export default function Dashboard() {
     const fetchRows = async () => {
       setLoadingRows(true);
 
+      const sortByParam = sortBy === "Oldest First" ? "asc" : "des";
       const query = {
         name: debouncedSearch || undefined,
         status: statusFilter === "All Status" ? undefined : statusFilter.toLowerCase(),
         start_date: fromDate || undefined,
         end_date: toDate || undefined,
+        sort_by: sortByParam,
+        page,
       };
 
       try {
         const data = await listInspections(query);
-        if (!cancelled && Array.isArray(data)) {
-          const mapped = data.map((item, index) => {
+        const results = Array.isArray(data) ? data : (data?.results ?? []);
+        const total = Array.isArray(data) ? results.length : (data?.count ?? results.length);
+        const pages = Array.isArray(data) ? 1 : (data?.total_pages ?? 1);
+        const current = Array.isArray(data) ? page : (data?.current_page ?? page);
+
+        if (!cancelled) {
+          setServerTotalCount(total);
+          setServerTotalPages(pages);
+          if (current !== page) setPage(current);
+
+          const mapped = results.map((item, index) => {
             let dateStr = "";
             let timeStr = "";
             if (item.created_at) {
@@ -210,6 +224,8 @@ export default function Dashboard() {
         if (!cancelled) {
           setRows([]);
           setSelected(new Set());
+          setServerTotalCount(0);
+          setServerTotalPages(1);
         }
       } finally {
         if (!cancelled) setLoadingRows(false);
@@ -220,11 +236,14 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, statusFilter, fromDate, toDate]);
+  }, [debouncedSearch, statusFilter, fromDate, toDate, sortBy, page]);
 
-  const filtered = rows;
-  const totalPages = Math.ceil(filtered.length / showEntries) || 1;
-  const paginated = filtered.slice((page - 1) * showEntries, page * showEntries);
+  const useServerPagination = serverTotalPages > 1 || serverTotalCount > rows.length;
+  const computedTotalPages = useServerPagination ? serverTotalPages : Math.max(1, Math.ceil(rows.length / showEntries));
+  const computedTotalCount = useServerPagination ? serverTotalCount : rows.length;
+  const serverPageSize = serverTotalPages > 0 ? Math.ceil(serverTotalCount / serverTotalPages) : showEntries;
+  const baseIndex = (page - 1) * (useServerPagination ? serverPageSize : showEntries);
+  const paginated = useServerPagination ? rows : rows.slice((page - 1) * showEntries, page * showEntries);
 
   const toggleAll = () => {
     if (paginated.every((t) => selected.has(t.id))) {
@@ -275,7 +294,7 @@ export default function Dashboard() {
             {[
               { label: "Total Link Sent", value: summary.total_links_sent },
               { label: "Clicks", value: summary.total_clicks },
-              { label: "Opens", value: summary.total_opens },
+              { label: "Total Completed", value: summary.total_opens },
               { label: "Not Clicked", value: summary.not_clicked },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
@@ -383,12 +402,11 @@ export default function Dashboard() {
               <span className="text-sm text-gray-600 font-medium">Sort By</span>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
               >
-                <option>Last Updated</option>
-                <option>Date</option>
-                <option>Name</option>
+                <option>Newest First</option>
+                <option>Oldest First</option>
               </select>
             </div>
           </div>
@@ -407,7 +425,7 @@ export default function Dashboard() {
               <span className="text-sm text-gray-600">Entries</span>
             </div>
             <span className="text-sm font-semibold text-gray-700">
-              Total List : {loadingRows ? "…" : filtered.length}
+              Total List : {loadingRows ? "…" : computedTotalCount}
             </span>
           </div>
         </div>
@@ -425,7 +443,7 @@ export default function Dashboard() {
                     className="w-4 h-4 rounded border-gray-300 accent-green-600 cursor-pointer"
                   />
                 </th>
-                {["#", "Customer Name", "Email Address", "Type", "Policy Number", "Damage Level", "Date", "Time", ""].map((h, i) => (
+                {["#", "Customer Name", "Email Address", "Type", "Policy Number", "Date", "Time", ""].map((h, i) => (
                   <th key={i} className="px-3 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -444,14 +462,11 @@ export default function Dashboard() {
                       className="w-4 h-4 rounded border-gray-300 accent-green-600 cursor-pointer"
                     />
                   </td>
-                  <td className="px-3 py-3 text-sm text-gray-500">{(page - 1) * showEntries + idx + 1}</td>
+                  <td className="px-3 py-3 text-sm text-gray-500">{baseIndex + idx + 1}</td>
                   <td className="px-3 py-3 text-sm text-gray-800 font-medium">{t.name}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.email}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.type}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.policyNumber}</td>
-                  <td className="px-3 py-3">
-                    <DamageBadge level={t.damageLevel} />
-                  </td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.date}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.time}</td>
                   <td className="px-3 py-3">
@@ -469,10 +484,10 @@ export default function Dashboard() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {computedTotalPages > 1 && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
             <span className="text-sm text-gray-500">
-              Showing {(page - 1) * showEntries + 1}–{Math.min(page * showEntries, filtered.length)} of {filtered.length}
+              Page {page} of {computedTotalPages} (Total {computedTotalCount})
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -482,7 +497,7 @@ export default function Dashboard() {
               >
                 ← Prev
               </button>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              {Array.from({ length: Math.min(5, computedTotalPages) }, (_, i) => {
                 const p = i + 1;
                 return (
                   <button
@@ -494,10 +509,10 @@ export default function Dashboard() {
                   </button>
                 );
               })}
-              {totalPages > 5 && <span className="text-gray-400 text-sm px-1">…</span>}
+              {computedTotalPages > 5 && <span className="text-gray-400 text-sm px-1">…</span>}
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
+                onClick={() => setPage((p) => Math.min(computedTotalPages, p + 1))}
+                disabled={page === computedTotalPages}
                 className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 Next →

@@ -31,11 +31,16 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const [captureResult, setCaptureResult] = useState("idle");
     // Temporarily hold the captured dataUrl until verified
     const [pendingPhoto, setPendingPhoto] = useState(null);
+    // Track how many attempts per side (for forced progression after repeated failures)
+    const [attempts, setAttempts] = useState({});
     // DEBUG: response time tracking (remove later)
     const [responseTimes, setResponseTimes] = useState([]);
 
     // ── Refs ───────────────────────────────────────────────────────────────────
     const wsRef = useRef(null);
+    const pendingPhotoRef = useRef(null);
+    const captureResultRef = useRef("idle");
+    const attemptsRef = useRef({});
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     // DEBUG: timing refs (remove later)
@@ -52,6 +57,9 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     useEffect(() => { capturedSidesRef.current = capturedSides; }, [capturedSides]);
     useEffect(() => { onAllCapturedRef.current = onAllCaptured; }, [onAllCaptured]);
     useEffect(() => { statusRef.current = status; }, [status]);
+    useEffect(() => { pendingPhotoRef.current = pendingPhoto; }, [pendingPhoto]);
+    useEffect(() => { captureResultRef.current = captureResult; }, [captureResult]);
+    useEffect(() => { attemptsRef.current = attempts; }, [attempts]);
 
     const currentSide = SIDE_ORDER[currentSideIndex] || null;
 
@@ -77,6 +85,13 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         const side = SIDE_ORDER[currentSideIndexRef.current];
         if (!side) return;
 
+        // Track attempts so we can force progress after repeated failures
+        setAttempts((prev) => {
+            const next = { ...prev, [side]: (prev[side] || 0) + 1 };
+            attemptsRef.current = next;
+            return next;
+        });
+
         // Take high-quality photo
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -97,18 +112,29 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         wsRef.current.send(JSON.stringify({ type: side, image: base64 }));
     }, []);
 
-    // ── Accept: user clicks Next after successful verification ────────────────
-    const acceptAndNext = useCallback(() => {
-        if (captureResult !== "success" || !pendingPhoto) return;
+    // ── Advance to next side (either after success, or forced after repeated failures) ─────────
+    const advanceSide = useCallback((force = false) => {
+        const photo = pendingPhotoRef.current;
+        const result = captureResultRef.current;
+        if (!photo) return;
+        if (!force && result !== "success") return;
 
         const side = SIDE_ORDER[currentSideIndexRef.current];
-        const updated = { ...capturedSidesRef.current, [side]: pendingPhoto };
+        const updated = { ...capturedSidesRef.current, [side]: photo };
         setCapturedSides(updated);
         capturedSidesRef.current = updated;
         setPendingPhoto(null);
         setCaptureResult("idle");
         setBbox(null);
         setLastResponse(null);
+
+        // Reset attempt counter for this side when moving on
+        setAttempts((prev) => {
+            const next = { ...prev };
+            delete next[side];
+            attemptsRef.current = next;
+            return next;
+        });
 
         const nextIndex = currentSideIndexRef.current + 1;
         if (nextIndex >= SIDE_ORDER.length) {
@@ -133,7 +159,11 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
             setCurrentSideIndex(nextIndex);
             currentSideIndexRef.current = nextIndex;
         }
-    }, [captureResult, pendingPhoto]);
+    }, []);
+
+    const acceptAndNext = useCallback(() => {
+        advanceSide(false);
+    }, [advanceSide]);
 
     // ── Retry: user clicks Try Again after failed verification ─────────────────
     const retryCapture = useCallback(() => {
@@ -172,10 +202,21 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 setBbox(data.bbox && Array.isArray(data.bbox) ? data.bbox : null);
                 setLastResponse(data);
 
+                const side = SIDE_ORDER[currentSideIndexRef.current];
+                const attemptsForSide = attemptsRef.current[side] || 0;
+
                 if (data.correct) {
                     setCaptureResult("success");
                 } else {
                     setCaptureResult("failed");
+
+                    // If the user has tried 3+ times for this side, force progression
+                    if (attemptsForSide >= 3) {
+                        // Briefly show failure state before moving on
+                        setTimeout(() => {
+                            advanceSide(true);
+                        }, 600);
+                    }
                 }
             } catch (err) {
                 console.warn("[WS] Parse error:", err);

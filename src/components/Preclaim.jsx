@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2 } from "lucide-react";
-import { verifyInspectionLink, uploadInspectionOcr, getDamageResults } from "../api";
+import { verifyInspectionLink, uploadInspectionOcr, uploadDamageImages, startAssessment, getDamageResults } from "../api";
 import VehicleSideCapture from "./VehicleSideCapture";
 
 // ─── STEPS ───────────────────────────────────────────────────────────────────
@@ -723,13 +723,33 @@ export default function App() {
     setDamageResults(null);
 
     try {
+      if (!unique_id) throw new Error('Missing unique_id');
+
+      const formData = new FormData();
+      formData.append('unique_id', unique_id);
+
+      // Attach images for upload (only the 4 side photos are required)
+      allPhotos.forEach((photo) => {
+        if (!photo?.dataUrl || !photo?.sideId) return;
+        if (!['front', 'rear', 'left', 'right'].includes(photo.sideId)) return;
+        const file = new File([dataUrlToBlob(photo.dataUrl)], `${photo.sideId}.jpg`, { type: 'image/jpeg' });
+        formData.append(photo.sideId, file);
+      });
+
+      // Upload all captured images
+      await uploadDamageImages(formData);
+
+      // Trigger assessment by sending only unique_id
+      await startAssessment({ unique_id });
+
+      // Fetch damage results (requires inspectionId from verify link)
       if (inspectionId) {
         const results = await getDamageResults(inspectionId);
         setDamageResults(results);
       }
     } catch (err) {
-      console.error('Failed to fetch damage results:', err);
-      setResultsError(err?.message || 'Failed to fetch assessment results');
+      console.error('Failed to submit assessment:', err);
+      setResultsError(err?.data?.detail || err?.message || 'Failed to submit assessment');
     } finally {
       setResultsLoading(false);
       setIsSubmitting(false);

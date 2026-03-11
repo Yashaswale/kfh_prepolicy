@@ -273,9 +273,12 @@ export default function App() {
   const [allChecked, setAllChecked] = useState(true);
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("Last Updated");
+  const [sortBy, setSortBy] = useState("Newest First");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [showSendLink, setShowSendLink] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
   const [rowsError, setRowsError] = useState("");
@@ -285,7 +288,10 @@ export default function App() {
 
   // Debounce search input — only trigger API after 500ms of no typing
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1);
+    }, 500);
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -300,6 +306,7 @@ export default function App() {
       const statusCode =
         statusFilter === "All Status" ? undefined : STATUS_LABEL_TO_CODE[statusFilter];
       const typeCode = TAB_TYPE_MAP[activeTab];
+      const sortByParam = sortBy === "Oldest First" ? "asc" : "des";
 
       const query = {
         status: statusCode,
@@ -307,11 +314,32 @@ export default function App() {
         type: typeCode,
         start_date: dateFrom || undefined,
         end_date: dateTo || undefined,
+        sort_by: sortByParam,
+        page: currentPage,
       };
+
       try {
         const data = await listInspections(query);
-        if (!cancelled && Array.isArray(data)) {
-          const mapped = data.map((item, index) => {
+        const results = Array.isArray(data)
+          ? data
+          : (data?.results ?? []);
+
+        const total = Array.isArray(data)
+          ? results.length
+          : (data?.count ?? results.length);
+        const pages = Array.isArray(data)
+          ? 1
+          : (data?.total_pages ?? 1);
+        const current = Array.isArray(data)
+          ? currentPage
+          : (data?.current_page ?? currentPage);
+
+        if (!cancelled) {
+          setTotalCount(total);
+          setTotalPages(pages);
+          if (current !== currentPage) setCurrentPage(current);
+
+          const mapped = results.map((item, index) => {
             let dateStr = "";
             let timeStr = "";
             if (item.created_at) {
@@ -333,6 +361,7 @@ export default function App() {
               link: item.link ?? "",
             };
           });
+
           setRows(mapped);
           setSelected(mapped.map(() => true));
           setAllChecked(mapped.length > 0);
@@ -353,7 +382,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch]);
+  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch, sortBy, currentPage]);
 
   const toggleAll = () => {
     const next = !allChecked;
@@ -403,6 +432,9 @@ export default function App() {
       setDetailView((prev) => prev ? { ...prev, ocrError: msg, ocrLoading: false } : null);
     }
   };
+
+  const showingStart = totalCount === 0 ? 0 : (currentPage - 1) * rows.length + 1;
+  const showingEnd = totalCount === 0 ? 0 : showingStart + rows.length - 1;
 
   // ── Detail View ─────────────────────────────────────────────────────────────
   if (detailView) {
@@ -483,7 +515,7 @@ export default function App() {
             {TABS.map(tab => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => { setActiveTab(tab.key); setCurrentPage(1); }}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium border transition
                   ${activeTab === tab.key
                     ? "bg-green-500 text-white border-green-500"
@@ -529,19 +561,19 @@ export default function App() {
             {/* From */}
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium text-gray-700">From</span>
-              <DatePicker value={dateFrom} onChange={setDateFrom} />
+              <DatePicker value={dateFrom} onChange={(val) => { setDateFrom(val); setCurrentPage(1); }} />
             </div>
 
             {/* To */}
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium text-gray-700">To</span>
-              <DatePicker value={dateTo} onChange={setDateTo} />
+              <DatePicker value={dateTo} onChange={(val) => { setDateTo(val); setCurrentPage(1); }} />
             </div>
 
             {/* Status */}
             <SelectDropdown
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}
               options={STATUS_FILTER_OPTIONS}
               minWidth="130px"
             />
@@ -551,8 +583,8 @@ export default function App() {
               <span className="font-medium text-gray-700 whitespace-nowrap">Sort By</span>
               <SelectDropdown
                 value={sortBy}
-                onChange={setSortBy}
-                options={["Last Updated", "First Updated", "Created Date"]}
+                onChange={(val) => { setSortBy(val); setCurrentPage(1); }}
+                options={["Newest First", "Oldest First"]}
                 minWidth="150px"
               />
             </div>
@@ -702,15 +734,40 @@ export default function App() {
             <span className="text-sm text-gray-500">
               {loadingRows
                 ? "Loading inspections..."
-                : rows.length
-                  ? `Showing 1–${rows.length} of ${rows.length}`
+                : totalCount
+                  ? `Showing ${showingStart}–${showingEnd} of ${totalCount}`
                   : "No inspections found"}
             </span>
-            {rowsError && (
-              <span className="text-xs text-orange-500">
-                {rowsError}
-              </span>
-            )}
+
+            <div className="flex items-center gap-4">
+              {rowsError && (
+                <span className="text-xs text-orange-500">
+                  {rowsError}
+                </span>
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="px-3 py-1 bg-white border border-gray-200 rounded text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Prev
+                </button>
+                <span className="text-sm text-gray-600">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="px-3 py-1 bg-white border border-gray-200 rounded text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
 
         </div>

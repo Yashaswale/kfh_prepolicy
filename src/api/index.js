@@ -93,6 +93,38 @@ export function uploadInspectionOcr(formData) {
   });
 }
 
+export function uploadDamageImages(formData) {
+  return apiRequestForm(ENDPOINTS.uploadDamageImages, {
+    method: 'POST',
+    formData,
+    auth: false,
+  });
+}
+
+export function startAssessment(payload) {
+  return apiRequest(ENDPOINTS.startAssessment, {
+    method: 'POST',
+    body: payload,
+    auth: false,
+  });
+}
+
+export function uploadWindshieldImages(formData) {
+  return apiRequestForm(ENDPOINTS.uploadWindshieldImages, {
+    method: 'POST',
+    formData,
+    auth: false,
+  });
+}
+
+export function startWindshieldAssessment(payload) {
+  return apiRequest(ENDPOINTS.startWindshieldAssessment, {
+    method: 'POST',
+    body: payload,
+    auth: false,
+  });
+}
+
 export function getDamageResults(id) {
   if (!id) {
     return Promise.reject(new Error('Inspection id is required for damage results'));

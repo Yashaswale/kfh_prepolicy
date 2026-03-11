@@ -14,8 +14,8 @@ function App() {
         {/* Public routes */}
         <Route path="/" element={<LoginPage />} />
         <Route path="/preclaim/:user_id/:unique_id" element={<Preclaim />} />
-        <Route path="/windsheild" element={<Windsheild />} />
-        <Route path="/motorclaim" element={<MotorClaim />} />
+        <Route path="/windsheild/:user_id/:unique_id" element={<Windsheild />} />
+        <Route path="/motorclaim/:user_id/:unique_id" element={<MotorClaim />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
