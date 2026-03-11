@@ -3,7 +3,7 @@ import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
 import PrePolicyAssessmentResult from "../pages/Pre-policy";
 import WindShieldAssessmentResult from "../pages/WindsheildClaim";
-import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults } from "../api";
+import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults, regenerateInspectionLink } from "../api";
 
 // ---- Icons ----
 const KFHLogo = () => (
@@ -281,6 +281,13 @@ export default function App() {
   const [rowsError, setRowsError] = useState("");
   // Detail view state — replaces the old inline OCR modal
   const [detailView, setDetailView] = useState(null);   // { row, ocrData, ocrLoading, ocrError }
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search input — only trigger API after 500ms of no typing
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
 
   // Load inspections list from API
@@ -296,7 +303,7 @@ export default function App() {
 
       const query = {
         status: statusCode,
-        name: search || undefined,
+        name: debouncedSearch || undefined,
         type: typeCode,
         start_date: dateFrom || undefined,
         end_date: dateTo || undefined,
@@ -304,17 +311,28 @@ export default function App() {
       try {
         const data = await listInspections(query);
         if (!cancelled && Array.isArray(data)) {
-          const mapped = data.map((item, index) => ({
-            id: item.id ?? index + 1,
-            name: item.customer_name ?? "-",
-            email: item.email ?? "",
-            policy: item.policy_number ?? "",
-            date: item.date ?? "",
-            time: item.time ?? "",
-            damage: item.damage_level ?? "",
-            status: item.status ?? "",
-            link: item.link ?? "",
-          }));
+          const mapped = data.map((item, index) => {
+            let dateStr = "";
+            let timeStr = "";
+            if (item.created_at) {
+              try {
+                const dt = new Date(item.created_at);
+                dateStr = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+                timeStr = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+              } catch (_) { }
+            }
+            return {
+              id: item.id ?? index + 1,
+              name: item.customer_name ?? "-",
+              email: item.email ?? "",
+              policy: item.policy_number ?? "",
+              date: dateStr,
+              time: timeStr,
+              damage: item.damage_level ?? "",
+              status: item.status ?? "",
+              link: item.link ?? "",
+            };
+          });
           setRows(mapped);
           setSelected(mapped.map(() => true));
           setAllChecked(mapped.length > 0);
@@ -335,7 +353,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, statusFilter, dateFrom, dateTo, search]);
+  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch]);
 
   const toggleAll = () => {
     const next = !allChecked;
@@ -503,6 +521,7 @@ export default function App() {
                 placeholder="Search by name, email,..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                autoComplete="off"
                 className="outline-none text-sm text-gray-600 placeholder-gray-400 w-full"
               />
             </div>
@@ -630,14 +649,39 @@ export default function App() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {row.link && (
+                        {row.status === "expired" ? (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const resp = await regenerateInspectionLink({ unique_id: row.unique_verify_id });
+                                setRows(prev => prev.map(r => r.unique_verify_id === row.unique_verify_id ? {
+                                  ...r,
+                                  link: resp?.link || resp?.data?.link || r.link,
+                                  status: resp?.status || resp?.data?.status || "pending",
+                                } : r));
+                              } catch (err) {
+                                alert(err?.data?.detail || err?.message || "Failed to regenerate link");
+                              }
+                            }}
+                            className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded transition"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                            </svg>
+                            Regenerate Link
+                          </button>
+                        ) : row.link ? (
                           <>
                             <span className="text-blue-500 text-xs truncate max-w-[130px]">{row.link}</span>
-                            <button className="text-gray-400 hover:text-gray-600 transition" title="Copy">
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(row.link); }}
+                              className="text-gray-400 hover:text-gray-600 transition"
+                              title="Copy link"
+                            >
                               <CopyIcon />
                             </button>
                           </>
-                        )}
+                        ) : null}
                         <button
                           onClick={() => openOcrForRow(row)}
                           className="text-gray-400 hover:text-gray-700 transition ml-1"

@@ -89,6 +89,7 @@ export default function Dashboard() {
   const [chartView, setChartView] = useState("Days");
   const [month, setMonth] = useState("February 2026");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -106,6 +107,12 @@ export default function Dashboard() {
   const [rows, setRows] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   // Load account summary for chart + cards
   useEffect(() => {
@@ -166,7 +173,7 @@ export default function Dashboard() {
       setLoadingRows(true);
 
       const query = {
-        name: search || undefined,
+        name: debouncedSearch || undefined,
         status: statusFilter === "All Status" ? undefined : statusFilter.toLowerCase(),
         start_date: fromDate || undefined,
         end_date: toDate || undefined,
@@ -175,16 +182,27 @@ export default function Dashboard() {
       try {
         const data = await listInspections(query);
         if (!cancelled && Array.isArray(data)) {
-          const mapped = data.map((item, index) => ({
-            id: item.id ?? index + 1,
-            name: item.customer_name ?? "-",
-            email: item.email ?? "",
-            type: item.type ?? "",
-            policyNumber: item.policy_number ?? "",
-            damageLevel: item.damage_level ?? "",
-            date: item.date ?? "",
-            time: item.time ?? "",
-          }));
+          const mapped = data.map((item, index) => {
+            let dateStr = "";
+            let timeStr = "";
+            if (item.created_at) {
+              try {
+                const dt = new Date(item.created_at);
+                dateStr = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+                timeStr = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+              } catch (_) { }
+            }
+            return {
+              id: item.id ?? index + 1,
+              name: item.customer_name ?? "-",
+              email: item.email ?? "",
+              type: item.type ?? "",
+              policyNumber: item.policy_number ?? "",
+              damageLevel: item.damage_level ?? "",
+              date: dateStr,
+              time: timeStr,
+            };
+          });
           setRows(mapped);
           setSelected(new Set(mapped.map((t) => t.id)));
         }
@@ -202,7 +220,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [search, statusFilter, fromDate, toDate]);
+  }, [debouncedSearch, statusFilter, fromDate, toDate]);
 
   const filtered = rows;
   const totalPages = Math.ceil(filtered.length / showEntries) || 1;
@@ -328,33 +346,23 @@ export default function Dashboard() {
             {/* From */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600 font-medium">From</span>
-              <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white">
-                <input
-                  type="text"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="text-sm text-gray-700 outline-none w-24"
-                />
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5" />
-                </svg>
-              </div>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white outline-none focus:ring-2 focus:ring-green-500"
+              />
             </div>
 
             {/* To */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600 font-medium">To</span>
-              <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white">
-                <input
-                  type="text"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="text-sm text-gray-700 outline-none w-24"
-                />
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5" />
-                </svg>
-              </div>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white outline-none focus:ring-2 focus:ring-green-500"
+              />
             </div>
 
             {/* Status (by inspection status string) */}

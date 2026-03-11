@@ -6,12 +6,11 @@ import useVehicleSideWS from "../hooks/useVehicleSideWS";
  * VehicleSideCapture — full-screen camera view with live WebSocket-based
  * vehicle side detection.
  *
- * Props:
- *   userId      — user id for WS URL
- *   uniqueId    — unique id for WS URL
- *   onAllCaptured(photos[]) — called with array of { sideId, label, dataUrl }
- *   onBack()    — called when user taps back
- *   existingPhotos — existing photos object to pass as initial captured sides (optional)
+ * Flow:
+ *   1. Camera feed + WS sends frames for detection.
+ *   2. When the correct side is detected, a CAPTURE button appears.
+ *   3. User taps Capture → photo taken → next side.
+ *   4. Repeats for all 4 sides.
  */
 export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, onBack, existingPhotos }) {
     const streamRef = useRef(null);
@@ -28,10 +27,12 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         bbox,
         lastResponse,
         capturedSides,
-        holdProgress,
+        readyToCapture,
+        responseTimes, // DEBUG: remove later
         status,
         connect,
         disconnect,
+        captureCurrentSide,
     } = useVehicleSideWS({
         userId,
         uniqueId,
@@ -42,7 +43,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const prevSideIndexRef = useRef(currentSideIndex);
     useEffect(() => {
         if (currentSideIndex > prevSideIndexRef.current && currentSideIndex <= sideOrder.length) {
-            // A side was just captured — show flash
             setCapturedFlash(true);
             const t = setTimeout(() => setCapturedFlash(false), 600);
             prevSideIndexRef.current = currentSideIndex;
@@ -109,7 +109,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         const vw = video.videoWidth || 1;
         const vh = video.videoHeight || 1;
 
-        // Scale bbox coordinates to the display size
         const scaleX = rect.width / vw;
         const scaleY = rect.height / vh;
 
@@ -180,12 +179,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         }
     }, [bbox, lastResponse, videoRef]);
 
-    // Redraw bbox whenever it changes
-    useEffect(() => {
-        drawBbox();
-    }, [drawBbox]);
-
-    // Also redraw on resize
+    useEffect(() => { drawBbox(); }, [drawBbox]);
     useEffect(() => {
         const handler = () => drawBbox();
         window.addEventListener("resize", handler);
@@ -193,6 +187,11 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     }, [drawBbox]);
 
     const isComplete = status === "done";
+
+    // Handle capture button click
+    const handleCapture = () => {
+        captureCurrentSide();
+    };
 
     return (
         <div className="h-screen bg-black flex flex-col relative overflow-hidden">
@@ -203,7 +202,10 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
         @keyframes fadeUp { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
         @keyframes captureFlash { 0% { opacity:0.8; } 100% { opacity:0; } }
-        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); } 50% { box-shadow: 0 0 20px 10px rgba(34,197,94,0.15); } }
+        @keyframes pulse-capture {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+          50% { transform: scale(1.05); box-shadow: 0 0 24px 8px rgba(34,197,94,0.25); }
+        }
         @keyframes scan-line {
           0% { top: 0; }
           100% { top: 100%; }
@@ -211,7 +213,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
         .fade-up { animation: fadeUp .45s ease both; }
         .capture-flash { animation: captureFlash 0.6s ease-out forwards; }
-        .hold-glow { animation: pulse-glow 1s ease-in-out infinite; }
+        .pulse-capture { animation: pulse-capture 1.2s ease-in-out infinite; }
 
         .side-pill {
           padding: 4px 12px;
@@ -238,13 +240,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
           background: rgba(255,255,255,0.05);
           color: rgba(255,255,255,0.4);
           border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .hold-ring {
-          position: relative;
-        }
-        .hold-ring svg {
-          transform: rotate(-90deg);
         }
 
         .status-badge {
@@ -279,19 +274,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
           border: 1px solid rgba(255,255,255,0.1);
           border-radius: 16px;
           padding: 16px 20px;
-        }
-
-        .progress-bar {
-          height: 4px;
-          border-radius: 2px;
-          background: rgba(255,255,255,0.1);
-          overflow: hidden;
-        }
-        .progress-bar-fill {
-          height: 100%;
-          border-radius: 2px;
-          background: linear-gradient(90deg, #22c55e, #4ade80);
-          transition: width 0.1s linear;
         }
       `}</style>
 
@@ -399,48 +381,57 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                 </div>
             </div>
 
-            {/* ─── Center: Hold progress ring ─── */}
-            {holdProgress > 0 && !isComplete && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 8 }}>
-                    <div className="hold-ring hold-glow" style={{ width: 100, height: 100 }}>
-                        <svg width="100" height="100" viewBox="0 0 100 100">
-                            {/* Background ring */}
-                            <circle
-                                cx="50"
-                                cy="50"
-                                r="44"
-                                fill="none"
-                                stroke="rgba(255,255,255,0.15)"
-                                strokeWidth="6"
-                            />
-                            {/* Progress ring */}
-                            <circle
-                                cx="50"
-                                cy="50"
-                                r="44"
-                                fill="none"
-                                stroke="#22c55e"
-                                strokeWidth="6"
-                                strokeLinecap="round"
-                                strokeDasharray={`${2 * Math.PI * 44}`}
-                                strokeDashoffset={`${2 * Math.PI * 44 * (1 - holdProgress / 100)}`}
-                                style={{ transition: "stroke-dashoffset 0.1s linear" }}
-                            />
-                        </svg>
-                        <div
-                            className="absolute inset-0 flex items-center justify-center"
-                            style={{ fontFamily: "'DM Sans', sans-serif" }}
-                        >
-                            <div className="text-center">
-                                <Camera className="w-6 h-6 text-white mx-auto mb-1" />
-                                <span className="text-white text-[10px] font-semibold">
-                                    Hold still
-                                </span>
-                            </div>
+            {/* ─── Center: Capture Button (when ready) ─── */}
+            {readyToCapture && !isComplete && (
+                <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 8 }}>
+                    <button
+                        onClick={handleCapture}
+                        className="pulse-capture flex items-center gap-3 px-8 py-4 rounded-2xl text-white font-bold text-base transition-all"
+                        style={{
+                            background: "rgba(34,197,94,0.85)",
+                            backdropFilter: "blur(12px)",
+                            border: "2px solid rgba(255,255,255,0.3)",
+                        }}
+                    >
+                        <Camera className="w-6 h-6" />
+                        Capture {sideLabels[currentSide]}
+                    </button>
+                </div>
+            )}
+
+            {/* DEBUG: Response Time Panel (remove later) */}
+            {responseTimes.length > 0 && (
+                <div
+                    className="absolute top-24 right-3 z-20"
+                    style={{
+                        background: "rgba(0,0,0,0.75)",
+                        backdropFilter: "blur(8px)",
+                        borderRadius: 10,
+                        padding: "8px 10px",
+                        maxHeight: 220,
+                        overflowY: "auto",
+                        minWidth: 160,
+                        border: "1px solid rgba(255,255,255,0.1)",
+                    }}
+                >
+                    <div style={{ fontSize: 9, color: "#4ade80", fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        ⏱ Response Times
+                    </div>
+                    {responseTimes.map((rt, i) => (
+                        <div key={i} style={{ fontSize: 10, color: rt.ms > 2000 ? "#fca5a5" : rt.ms > 1000 ? "#fde68a" : "#d1d5db", display: "flex", justifyContent: "space-between", gap: 8, lineHeight: "18px" }}>
+                            <span style={{ color: "#9ca3af" }}>#{rt.frame}</span>
+                            <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{rt.ms}ms</span>
                         </div>
+                    ))}
+                    <div style={{ marginTop: 4, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 4, fontSize: 10, color: "#9ca3af", display: "flex", justifyContent: "space-between" }}>
+                        <span>Avg</span>
+                        <span style={{ fontWeight: 600, color: "#4ade80" }}>
+                            {Math.round(responseTimes.reduce((a, b) => a + b.ms, 0) / responseTimes.length)}ms
+                        </span>
                     </div>
                 </div>
             )}
+            {/* END DEBUG */}
 
             {/* ─── Bottom instructions ─── */}
             <div
@@ -463,20 +454,14 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
                         <p className="text-white/60 text-xs mb-3 leading-relaxed">
                             Point your camera at the <strong className="text-white/90">{currentSide}</strong> of the vehicle.
-                            {" "}When detected, hold steady for 2 seconds to auto-capture.
+                            {readyToCapture
+                                ? " Side detected! Tap the Capture button above when ready."
+                                : " Once detected, a capture button will appear."}
                         </p>
-
-                        {/* Hold progress bar */}
-                        <div className="progress-bar">
-                            <div
-                                className="progress-bar-fill"
-                                style={{ width: `${holdProgress}%` }}
-                            />
-                        </div>
 
                         {/* Detection feedback */}
                         {lastResponse && (
-                            <div className="flex items-center gap-2 mt-3">
+                            <div className="flex items-center gap-2 mt-2">
                                 <div
                                     className="w-2 h-2 rounded-full"
                                     style={{
@@ -491,7 +476,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                                     style={{ color: lastResponse.correct ? "#4ade80" : "#fca5a5" }}
                                 >
                                     {lastResponse.correct
-                                        ? `✓ ${lastResponse.detected} detected — hold still!`
+                                        ? `✓ ${lastResponse.detected} detected — tap Capture!`
                                         : lastResponse.detected
                                             ? `Detected: ${lastResponse.detected} (expected: ${lastResponse.expected})`
                                             : `Looking for ${lastResponse.expected}…`}
