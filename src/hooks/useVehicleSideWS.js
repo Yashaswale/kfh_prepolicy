@@ -20,9 +20,24 @@ const SIDE_LABELS = {
     right: "Right Side",
 };
 
+function getNextSide(capturedSides) {
+    const allSides = SIDE_ORDER;
+    if (!capturedSides) return allSides[0];
+
+    const captured = new Set(Object.keys(capturedSides).filter((k) => capturedSides[k]));
+    const remaining = allSides.filter((s) => !captured.has(s));
+    if (!remaining.length) return null;
+
+    // If we have one of the left/right sides, prompt for the other next (better UX)
+    if (captured.has("left") && !captured.has("right")) return "right";
+    if (captured.has("right") && !captured.has("left")) return "left";
+
+    // Otherwise fall back to a fixed order
+    return remaining[0];
+}
+
 export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     // ── State ──────────────────────────────────────────────────────────────────
-    const [currentSideIndex, setCurrentSideIndex] = useState(0);
     const [bbox, setBbox] = useState(null);
     const [lastResponse, setLastResponse] = useState(null);
     const [capturedSides, setCapturedSides] = useState({});
@@ -31,8 +46,12 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const [captureResult, setCaptureResult] = useState("idle");
     // Temporarily hold the captured dataUrl until verified
     const [pendingPhoto, setPendingPhoto] = useState(null);
+    // The side the server has detected for the pending photo
+    const [pendingDetectedSide, setPendingDetectedSide] = useState(null);
     // Track how many attempts per side (for forced progression after repeated failures)
     const [attempts, setAttempts] = useState({});
+    // Rotate left/right images on retry (helps when camera is rotated)
+    const [rotateLeftRight, setRotateLeftRight] = useState(false);
     // DEBUG: response time tracking (remove later)
     const [responseTimes, setResponseTimes] = useState([]);
 
@@ -48,20 +67,20 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const frameCountRef = useRef(0);
 
     // Mutable refs — always hold latest values
-    const currentSideIndexRef = useRef(0);
     const capturedSidesRef = useRef({});
     const onAllCapturedRef = useRef(onAllCaptured);
     const statusRef = useRef("idle");
 
-    useEffect(() => { currentSideIndexRef.current = currentSideIndex; }, [currentSideIndex]);
+    const currentSide = getNextSide(capturedSides);
+    const currentSideRef = useRef(currentSide);
+
+    useEffect(() => { currentSideRef.current = currentSide; }, [currentSide]);
     useEffect(() => { capturedSidesRef.current = capturedSides; }, [capturedSides]);
     useEffect(() => { onAllCapturedRef.current = onAllCaptured; }, [onAllCaptured]);
     useEffect(() => { statusRef.current = status; }, [status]);
     useEffect(() => { pendingPhotoRef.current = pendingPhoto; }, [pendingPhoto]);
     useEffect(() => { captureResultRef.current = captureResult; }, [captureResult]);
     useEffect(() => { attemptsRef.current = attempts; }, [attempts]);
-
-    const currentSide = SIDE_ORDER[currentSideIndex] || null;
 
     // ── Internal cleanup ──────────────────────────────────────────────────────
     const cleanup = useCallback(() => {
@@ -75,19 +94,45 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         }
     }, []);
 
+    const rotateDataUrl = useCallback((dataUrl, degrees) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const cw = img.width;
+                const ch = img.height;
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+
+                if (degrees % 180 !== 0) {
+                    canvas.width = ch;
+                    canvas.height = cw;
+                } else {
+                    canvas.width = cw;
+                    canvas.height = ch;
+                }
+
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate((degrees * Math.PI) / 180);
+                ctx.drawImage(img, -cw / 2, -ch / 2);
+                resolve(canvas.toDataURL("image/jpeg", 0.9));
+            };
+            img.src = dataUrl;
+        });
+    }, []);
+
     // ── Capture: take photo and send to WS for validation ─────────────────────
-    const captureAndVerify = useCallback(() => {
+    const captureAndVerify = useCallback(async () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         if (!video || !canvas || video.readyState < 2) return;
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-        const side = SIDE_ORDER[currentSideIndexRef.current];
-        if (!side) return;
+        const side = "any"; // Let the model decide which side is shown
 
         // Track attempts so we can force progress after repeated failures
         setAttempts((prev) => {
-            const next = { ...prev, [side]: (prev[side] || 0) + 1 };
+            const key = currentSideRef.current || "any";
+            const next = { ...prev, [key]: (prev[key] || 0) + 1 };
             attemptsRef.current = next;
             return next;
         });
@@ -97,10 +142,15 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         canvas.height = video.videoHeight;
         canvas.getContext("2d").drawImage(video, 0, 0);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-        const base64 = dataUrl.split(",")[1];
+
+        // Rotate left/right images on retry when needed
+        const outgoingDataUrl = rotateLeftRight ? await rotateDataUrl(dataUrl, -90) : dataUrl;
+        if (rotateLeftRight) setRotateLeftRight(false);
+
+        const base64 = outgoingDataUrl.split(",")[1];
 
         // Store pending photo
-        setPendingPhoto(dataUrl);
+        setPendingPhoto(outgoingDataUrl);
         setCaptureResult("verifying");
         setBbox(null);
 
@@ -110,23 +160,25 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
 
         // Send to WS for validation
         wsRef.current.send(JSON.stringify({ type: side, image: base64 }));
-    }, []);
+    }, [rotateDataUrl, rotateLeftRight]);
 
-    // ── Advance to next side (either after success, or forced after repeated failures) ─────────
     const advanceSide = useCallback((force = false) => {
         const photo = pendingPhotoRef.current;
         const result = captureResultRef.current;
         if (!photo) return;
         if (!force && result !== "success") return;
 
-        const side = SIDE_ORDER[currentSideIndexRef.current];
+        const side = currentSideRef.current || "any";
         const updated = { ...capturedSidesRef.current, [side]: photo };
         setCapturedSides(updated);
         capturedSidesRef.current = updated;
+
         setPendingPhoto(null);
+        setPendingDetectedSide(null);
         setCaptureResult("idle");
         setBbox(null);
         setLastResponse(null);
+        setRotateLeftRight(false);
 
         // Reset attempt counter for this side when moving on
         setAttempts((prev) => {
@@ -136,17 +188,14 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
             return next;
         });
 
-        const nextIndex = currentSideIndexRef.current + 1;
-        if (nextIndex >= SIDE_ORDER.length) {
+        const nextSide = getNextSide(updated);
+        if (!nextSide) {
             setStatus("done");
-            setCurrentSideIndex(nextIndex);
-
             if (wsRef.current) {
                 wsRef.current.onclose = null;
                 wsRef.current.close();
                 wsRef.current = null;
             }
-
             const cb = onAllCapturedRef.current;
             if (cb) {
                 cb(SIDE_ORDER.map((s) => ({
@@ -155,9 +204,6 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                     dataUrl: updated[s],
                 })));
             }
-        } else {
-            setCurrentSideIndex(nextIndex);
-            currentSideIndexRef.current = nextIndex;
         }
     }, []);
 
@@ -202,17 +248,27 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 setBbox(data.bbox && Array.isArray(data.bbox) ? data.bbox : null);
                 setLastResponse(data);
 
-                const side = SIDE_ORDER[currentSideIndexRef.current];
-                const attemptsForSide = attemptsRef.current[side] || 0;
+                const detectedSide = data.detected || currentSideRef.current;
+                setPendingDetectedSide(detectedSide);
+
+                const attemptKey = currentSideRef.current || "any";
+                const attemptsForSide = attemptsRef.current[attemptKey] || 0;
+
+                const alreadyCaptured = detectedSide && !!capturedSidesRef.current[detectedSide];
+                const isSuccess = data.correct || (detectedSide && !alreadyCaptured);
 
                 if (data.correct) {
                     setCaptureResult("success");
                 } else {
                     setCaptureResult("failed");
 
-                    // If the user has tried 3+ times for this side, force progression
+                    // Rotate for left/right when detection is wrong (mobile orientation)
+                    if (detectedSide === "left" || detectedSide === "right") {
+                        setRotateLeftRight(true);
+                    }
+
+                    // If the user has tried 3+ times for this side, auto-advance to keep flow moving
                     if (attemptsForSide >= 3) {
-                        // Briefly show failure state before moving on
                         setTimeout(() => {
                             advanceSide(true);
                         }, 600);
@@ -243,6 +299,8 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         setStatus("idle");
         setCaptureResult("idle");
         setPendingPhoto(null);
+        setPendingDetectedSide(null);
+        setRotateLeftRight(false);
     }, [cleanup]);
 
     // ── Unmount cleanup ────────────────────────────────────────────────────────
@@ -263,7 +321,6 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         videoRef,
         canvasRef,
         currentSide,
-        currentSideIndex,
         sideOrder: SIDE_ORDER,
         sideLabels: SIDE_LABELS,
         bbox,
@@ -280,3 +337,4 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         retryCapture,
     };
 }
+

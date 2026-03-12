@@ -20,7 +20,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         videoRef,
         canvasRef,
         currentSide,
-        currentSideIndex,
         sideOrder,
         sideLabels,
         bbox,
@@ -41,17 +40,32 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         onAllCaptured,
     });
 
+    const [showLandscapeModal, setShowLandscapeModal] = useState(false);
+    const [dismissedLandscapeFor, setDismissedLandscapeFor] = useState(null);
+
     // Track the previous side to detect transitions (flash effect)
-    const prevSideIndexRef = useRef(currentSideIndex);
+    const prevSideRef = useRef(currentSide);
     useEffect(() => {
-        if (currentSideIndex > prevSideIndexRef.current && currentSideIndex <= sideOrder.length) {
+        if (currentSide && prevSideRef.current && currentSide !== prevSideRef.current) {
             setCapturedFlash(true);
             const t = setTimeout(() => setCapturedFlash(false), 600);
-            prevSideIndexRef.current = currentSideIndex;
+            prevSideRef.current = currentSide;
             return () => clearTimeout(t);
         }
-        prevSideIndexRef.current = currentSideIndex;
-    }, [currentSideIndex, sideOrder.length]);
+        prevSideRef.current = currentSide;
+    }, [currentSide]);
+
+    // Suggest the user switch to landscape orientation when capturing left/right
+    useEffect(() => {
+        const update = () => {
+            const isPortrait = window.innerHeight > window.innerWidth;
+            const isLR = currentSide === "left" || currentSide === "right";
+            setShowLandscapeModal(isPortrait && isLR && dismissedLandscapeFor !== currentSide);
+        };
+        update();
+        window.addEventListener("resize", update);
+        return () => window.removeEventListener("resize", update);
+    }, [currentSide, dismissedLandscapeFor]);
 
     // Acquire camera stream
     useEffect(() => {
@@ -160,6 +174,13 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const isComplete = status === "done";
     const isConnected = status === "connected";
 
+    const capturedCount = Object.values(capturedSides).filter(Boolean).length;
+    const remainingCount = sideOrder.length - capturedCount;
+    const captureIndexDisplay = Math.min(capturedCount + 1, sideOrder.length);
+    const isLastCapture = remainingCount <= 1;
+
+    const promptSideLabel = capturedCount === 0 ? "Any Side" : currentSide ? sideLabels[currentSide] : "Vehicle Side";
+
     return (
         <div className="h-screen bg-black flex flex-col relative overflow-hidden">
             <style>{`
@@ -200,14 +221,58 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         }
       `}</style>
 
-            {/* Video feed */}
-            <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+            {showLandscapeModal && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
+                    <div className="max-w-sm w-full text-center bg-black/80 border border-white/10 rounded-2xl p-6">
+                        <div className="text-white text-lg font-bold mb-2">Hold phone in landscape</div>
+                        <p className="text-white/70 text-sm mb-4">
+                            For best results, rotate your device so it's wider than it is tall and then tap "Got it".
+                        </p>
+                        <button
+                            onClick={() => {
+                                setShowLandscapeModal(false);
+                                setDismissedLandscapeFor(currentSide);
+                            }}
+                            className="px-5 py-2 bg-white text-black rounded-full font-semibold"
+                        >
+                            Got it
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Video area (4:3) */}
+            <div
+                className="relative mx-auto"
+                style={{
+                    width: "min(92vw, calc(100vh * 4 / 3))",
+                    height: "min(82vh, calc(100vw * 3 / 4))",
+                    aspectRatio: "4 / 3",
+                    background: "black",
+                }}
+            >
+                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+
+                {/* Freeze-frame of captured photo while verifying */}
+                {pendingPhoto && (
+                    <img
+                        src={pendingPhoto}
+                        alt="Captured preview"
+                        className="absolute inset-0 w-full h-full object-cover rounded-xl"
+                        style={{ zIndex: 5 }}
+                    />
+                )}
+
+                {/* Overlay canvas for bounding box */}
+                <canvas
+                    ref={overlayCanvasRef}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ zIndex: 6 }}
+                />
+            </div>
 
             {/* Hidden canvas for frame capture */}
             <canvas ref={canvasRef} style={{ display: "none" }} />
-
-            {/* Overlay canvas for bounding box */}
-            <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }} />
 
             {/* Capture flash effect */}
             {capturedFlash && (
@@ -246,9 +311,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
                 {/* Side progress pills */}
                 <div className="flex gap-2 justify-center flex-wrap">
-                    {sideOrder.map((side, i) => {
+                    {sideOrder.map((side) => {
                         const isCaptured = !!capturedSides[side];
-                        const isActive = i === currentSideIndex && !isComplete;
+                        const isActive = side === currentSide && !isComplete;
                         return (
                             <div key={side} className={`side-pill ${isCaptured ? "completed" : isActive ? "active" : "pending"}`}>
                                 {isCaptured && <CheckCircle className="inline w-3 h-3 mr-1 -mt-0.5" />}
@@ -260,7 +325,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
             </div>
 
             {/* DEBUG: Response Time Panel (remove later) */}
-            {responseTimes.length > 0 && (
+            {/* {responseTimes.length > 0 && (
                 <div
                     className="absolute top-24 right-3 z-20"
                     style={{
@@ -285,7 +350,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         </span>
                     </div>
                 </div>
-            )}
+            )} */}
             {/* END DEBUG */}
 
             {/* ─── Bottom section ─── */}
@@ -300,11 +365,11 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             <div className="flex items-center gap-2">
                                 <Camera className="w-4 h-4 text-green-400" />
                                 <span className="text-white font-syne text-sm font-bold" style={{ fontWeight: 700 }}>
-                                    {sideLabels[currentSide]}
+                                    {promptSideLabel}
                                 </span>
                             </div>
                             <span className="text-white/40 text-xs">
-                                {currentSideIndex + 1} / {sideOrder.length}
+                                {captureIndexDisplay} / {sideOrder.length}
                             </span>
                         </div>
 
@@ -348,7 +413,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         {/* Instruction text when idle */}
                         {captureResult === "idle" && (
                             <p className="text-white/60 text-xs mb-4 leading-relaxed">
-                                Point your camera at the <strong className="text-white/90">{currentSide}</strong> of the vehicle and tap <strong className="text-white/90">Capture</strong>.
+                                Point your camera at the <strong className="text-white/90">{promptSideLabel}</strong> of the vehicle and tap <strong className="text-white/90">Capture</strong>.
                             </p>
                         )}
 
@@ -360,10 +425,10 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                                     onClick={captureResult === "failed" ? retryCapture : captureAndVerify}
                                     disabled={!isConnected}
                                     className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${!isConnected
-                                            ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                                            : captureResult === "failed"
-                                                ? "bg-orange-500 hover:bg-orange-600 text-white pulse-btn"
-                                                : "bg-white text-black hover:bg-gray-100 pulse-btn"
+                                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                                        : captureResult === "failed"
+                                            ? "bg-orange-500 hover:bg-orange-600 text-white pulse-btn"
+                                            : "bg-white text-black hover:bg-gray-100 pulse-btn"
                                         }`}
                                 >
                                     {captureResult === "failed" ? (
@@ -387,7 +452,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                                     onClick={acceptAndNext}
                                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all pulse-btn"
                                 >
-                                    {currentSideIndex + 1 >= sideOrder.length ? (
+                                    {isLastCapture ? (
                                         <><CheckCircle className="w-4 h-4" /> Finish</>
                                     ) : (
                                         <><ChevronRight className="w-4 h-4" /> Next</>
