@@ -48,7 +48,10 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const [pendingPhoto, setPendingPhoto] = useState(null);
     // The side the server has detected for the pending photo
     const [pendingDetectedSide, setPendingDetectedSide] = useState(null);
-    // Track how many attempts per side (for forced progression after repeated failures)
+    // Track capture step: 0=front,1=rear,2=any,3=any
+    const [captureStep, setCaptureStep] = useState(0);
+    const captureStepRef = useRef(captureStep);
+    // Track how many attempts per step (for forced progression after repeated failures)
     const [attempts, setAttempts] = useState({});
     // Rotate left/right images on retry (helps when camera is rotated)
     const [rotateLeftRight, setRotateLeftRight] = useState(false);
@@ -71,10 +74,11 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const onAllCapturedRef = useRef(onAllCaptured);
     const statusRef = useRef("idle");
 
-    const currentSide = getNextSide(capturedSides);
+    const currentSide = captureStep === 0 ? "front" : captureStep === 1 ? "rear" : null;
     const currentSideRef = useRef(currentSide);
 
     useEffect(() => { currentSideRef.current = currentSide; }, [currentSide]);
+    useEffect(() => { captureStepRef.current = captureStep; }, [captureStep]);
     useEffect(() => { capturedSidesRef.current = capturedSides; }, [capturedSides]);
     useEffect(() => { onAllCapturedRef.current = onAllCaptured; }, [onAllCaptured]);
     useEffect(() => { statusRef.current = status; }, [status]);
@@ -131,7 +135,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
 
         // Track attempts so we can force progress after repeated failures
         setAttempts((prev) => {
-            const key = currentSideRef.current || "any";
+            const key = `step_${captureStepRef.current}`;
             const next = { ...prev, [key]: (prev[key] || 0) + 1 };
             attemptsRef.current = next;
             return next;
@@ -168,7 +172,8 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         if (!photo) return;
         if (!force && result !== "success") return;
 
-        const side = currentSideRef.current || "any";
+        // Determine which side the server detected (for storing correctness)
+        const side = pendingDetectedSide || "any";
         const updated = { ...capturedSidesRef.current, [side]: photo };
         setCapturedSides(updated);
         capturedSidesRef.current = updated;
@@ -180,16 +185,18 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         setLastResponse(null);
         setRotateLeftRight(false);
 
-        // Reset attempt counter for this side when moving on
+        // Reset attempt counter for this step when moving on
         setAttempts((prev) => {
             const next = { ...prev };
-            delete next[side];
+            delete next[captureStep];
             attemptsRef.current = next;
             return next;
         });
 
-        const nextSide = getNextSide(updated);
-        if (!nextSide) {
+        const nextStep = captureStep + 1;
+        setCaptureStep(nextStep);
+
+        if (nextStep >= 4) {
             setStatus("done");
             if (wsRef.current) {
                 wsRef.current.onclose = null;
@@ -205,7 +212,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 })));
             }
         }
-    }, []);
+    }, [captureStep, pendingDetectedSide]);
 
     const acceptAndNext = useCallback(() => {
         advanceSide(false);
@@ -251,7 +258,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 const detectedSide = data.detected || currentSideRef.current;
                 setPendingDetectedSide(detectedSide);
 
-                const attemptKey = currentSideRef.current || "any";
+                const attemptKey = `step_${captureStepRef.current}`;
                 const attemptsForSide = attemptsRef.current[attemptKey] || 0;
 
                 const alreadyCaptured = detectedSide && !!capturedSidesRef.current[detectedSide];

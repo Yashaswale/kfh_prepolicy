@@ -179,7 +179,11 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const captureIndexDisplay = Math.min(capturedCount + 1, sideOrder.length);
     const isLastCapture = remainingCount <= 1;
 
-    const promptSideLabel = capturedCount === 0 ? "Any Side" : currentSide ? sideLabels[currentSide] : "Vehicle Side";
+    const promptSideLabel = currentSide === "front"
+        ? sideLabels.front
+        : currentSide === "rear"
+            ? sideLabels.rear
+            : "Any Side";
 
     return (
         <div className="h-screen bg-black flex flex-col relative overflow-hidden">
@@ -217,7 +221,8 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
         .instruction-card {
           background: rgba(0,0,0,0.6); backdrop-filter: blur(16px);
-          border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px 20px;
+          border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
+          padding: 14px 18px; max-height: 220px; overflow-y: auto;
         }
       `}</style>
 
@@ -243,15 +248,20 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
             {/* Video area (4:3) */}
             <div
-                className="relative mx-auto"
+                className="absolute left-1/2"
                 style={{
-                    width: "min(92vw, calc(100vh * 4 / 3))",
-                    height: "min(82vh, calc(100vw * 3 / 4))",
-                    aspectRatio: "4 / 3",
-                    background: "black",
+                    top: "10vh",
+                    height: "70vh",
+                    transform: "translateX(-50%)",
+                    width: "min(90vw, calc(70vh * 4 / 3))",
+                    background: "rgba(0,0,0,0.35)",
+                    border: "2px solid rgba(255,255,255,0.25)",
+                    borderRadius: 18,
+                    overflow: "hidden",
+                    boxShadow: "0 18px 42px rgba(0,0,0,0.55)",
                 }}
             >
-                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
 
                 {/* Freeze-frame of captured photo while verifying */}
                 {pendingPhoto && (
