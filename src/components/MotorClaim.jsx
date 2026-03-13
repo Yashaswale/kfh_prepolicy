@@ -677,9 +677,9 @@ function SuccessScreen({ reqId, totalPhotos }) {
       <div className="w-20 h-20 rounded-full kfh-bg flex items-center justify-center mb-6 fade-up">
         <Check className="w-10 h-10 text-white" />
       </div>
-      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{fontWeight:700}}>Claim Submitted</h2>
+      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{fontWeight:700}}>Submission Successful</h2>
       <p className="text-gray-500 text-sm leading-relaxed mb-8 fade-up-1">
-        Your motor claim with {totalPhotos} photo{totalPhotos !== 1 ? 's' : ''} has been submitted successfully. Our team will review and contact you shortly.
+        Your claim has been submitted successfully. Our team will review and contact you shortly.
       </p>
     </div>
   );

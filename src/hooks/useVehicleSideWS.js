@@ -53,10 +53,6 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const captureStepRef = useRef(captureStep);
     // Track how many attempts per step (for forced progression after repeated failures)
     const [attempts, setAttempts] = useState({});
-    // Rotate left/right images on retry (helps when camera is rotated)
-    const [rotateLeftRight, setRotateLeftRight] = useState(false);
-    // DEBUG: response time tracking (remove later)
-    const [responseTimes, setResponseTimes] = useState([]);
 
     // ── Refs ───────────────────────────────────────────────────────────────────
     const wsRef = useRef(null);
@@ -65,16 +61,15 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const attemptsRef = useRef({});
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
-    // DEBUG: timing refs (remove later)
-    const frameSendTimeRef = useRef(null);
-    const frameCountRef = useRef(0);
 
     // Mutable refs — always hold latest values
     const capturedSidesRef = useRef({});
     const onAllCapturedRef = useRef(onAllCaptured);
     const statusRef = useRef("idle");
+    const advanceSideRef = useRef(null);
 
-    const currentSide = captureStep === 0 ? "front" : captureStep === 1 ? "rear" : null;
+    const currentSideIndex = captureStep;
+    const currentSide = SIDE_ORDER[currentSideIndex] || null;
     const currentSideRef = useRef(currentSide);
 
     useEffect(() => { currentSideRef.current = currentSide; }, [currentSide]);
@@ -131,7 +126,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         if (!video || !canvas || video.readyState < 2) return;
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
-        const side = "any"; // Let the model decide which side is shown
+        const side = currentSideRef.current || "any";
 
         // Track attempts so we can force progress after repeated failures
         setAttempts((prev) => {
@@ -141,15 +136,14 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
             return next;
         });
 
-        // Take high-quality photo
+        // Take high-quality photo and rotate 90 degrees anticlockwise
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         canvas.getContext("2d").drawImage(video, 0, 0);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
 
-        // Rotate left/right images on retry when needed
-        const outgoingDataUrl = rotateLeftRight ? await rotateDataUrl(dataUrl, -90) : dataUrl;
-        if (rotateLeftRight) setRotateLeftRight(false);
+        // Always rotate images 90 degrees anticlockwise
+        const outgoingDataUrl = await rotateDataUrl(dataUrl, -90);
 
         const base64 = outgoingDataUrl.split(",")[1];
 
@@ -158,13 +152,9 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         setCaptureResult("verifying");
         setBbox(null);
 
-        // DEBUG: record send time
-        frameSendTimeRef.current = Date.now();
-        frameCountRef.current += 1;
-
         // Send to WS for validation
         wsRef.current.send(JSON.stringify({ type: side, image: base64 }));
-    }, [rotateDataUrl, rotateLeftRight]);
+    }, [rotateDataUrl]);
 
     const advanceSide = useCallback((force = false) => {
         const photo = pendingPhotoRef.current;
@@ -172,29 +162,30 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         if (!photo) return;
         if (!force && result !== "success") return;
 
-        // Determine which side the server detected (for storing correctness)
-        const side = pendingDetectedSide || "any";
+        // Store the photo against the currently expected side
+        const side = currentSideRef.current;
         const updated = { ...capturedSidesRef.current, [side]: photo };
         setCapturedSides(updated);
         capturedSidesRef.current = updated;
 
         setPendingPhoto(null);
+        pendingPhotoRef.current = null; // synchronous update to prevent race conditions
         setPendingDetectedSide(null);
         setCaptureResult("idle");
         setBbox(null);
         setLastResponse(null);
-        setRotateLeftRight(false);
 
         // Reset attempt counter for this step when moving on
         setAttempts((prev) => {
             const next = { ...prev };
-            delete next[captureStep];
+            delete next[`step_${captureStepRef.current}`];
             attemptsRef.current = next;
             return next;
         });
 
-        const nextStep = captureStep + 1;
+        const nextStep = captureStepRef.current + 1;
         setCaptureStep(nextStep);
+        captureStepRef.current = nextStep; // Keep ref immediately updated too
 
         if (nextStep >= 4) {
             setStatus("done");
@@ -212,7 +203,11 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 })));
             }
         }
-    }, [captureStep, pendingDetectedSide]);
+    }, []);
+
+    useEffect(() => {
+        advanceSideRef.current = advanceSide;
+    }, [advanceSide]);
 
     const acceptAndNext = useCallback(() => {
         advanceSide(false);
@@ -241,15 +236,6 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         };
 
         ws.onmessage = (event) => {
-            // DEBUG: calculate response time (remove later)
-            const responseMs = frameSendTimeRef.current ? Date.now() - frameSendTimeRef.current : null;
-            if (responseMs !== null) {
-                setResponseTimes(prev => {
-                    const entry = { frame: frameCountRef.current, ms: responseMs, time: new Date().toLocaleTimeString() };
-                    return [...prev.slice(-9), entry];
-                });
-            }
-
             try {
                 const data = JSON.parse(event.data);
                 setBbox(data.bbox && Array.isArray(data.bbox) ? data.bbox : null);
@@ -261,23 +247,22 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 const attemptKey = `step_${captureStepRef.current}`;
                 const attemptsForSide = attemptsRef.current[attemptKey] || 0;
 
-                const alreadyCaptured = detectedSide && !!capturedSidesRef.current[detectedSide];
-                const isSuccess = data.correct || (detectedSide && !alreadyCaptured);
+                const expectedSide = currentSideRef.current;
+                
+                // Success implies it's explicitly correct from the backend, 
+                // or the detected side matches what we expect
+                const isSuccess = data.correct === true || 
+                                 (data.detected && data.detected.toLowerCase() === expectedSide.toLowerCase());
 
-                if (data.correct) {
+                if (isSuccess) {
                     setCaptureResult("success");
                 } else {
                     setCaptureResult("failed");
 
-                    // Rotate for left/right when detection is wrong (mobile orientation)
-                    if (detectedSide === "left" || detectedSide === "right") {
-                        setRotateLeftRight(true);
-                    }
-
                     // If the user has tried 3+ times for this side, auto-advance to keep flow moving
                     if (attemptsForSide >= 3) {
                         setTimeout(() => {
-                            advanceSide(true);
+                            if (advanceSideRef.current) advanceSideRef.current(true);
                         }, 600);
                     }
                 }
@@ -307,7 +292,6 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         setCaptureResult("idle");
         setPendingPhoto(null);
         setPendingDetectedSide(null);
-        setRotateLeftRight(false);
     }, [cleanup]);
 
     // ── Unmount cleanup ────────────────────────────────────────────────────────
@@ -328,6 +312,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         videoRef,
         canvasRef,
         currentSide,
+        currentSideIndex,
         sideOrder: SIDE_ORDER,
         sideLabels: SIDE_LABELS,
         bbox,
@@ -335,7 +320,6 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         capturedSides,
         captureResult,
         pendingPhoto,
-        responseTimes, // DEBUG: remove later
         status,
         connect,
         disconnect,

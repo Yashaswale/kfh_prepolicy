@@ -323,7 +323,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
   const [streamReady, setStreamReady] = useState(false);
   const [streamObj, setStreamObj] = useState(null);
 
-  const needsLandscape = step.aspect === "landscape";
+  const needsLandscape = true; // All photos require landscape mode
   const isCloseup = step.id === "windshield_damage";
 
   useEffect(() => {
@@ -352,9 +352,25 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
     if (!videoRef.current || !canvasRef.current) return;
     const v = videoRef.current;
     const c = canvasRef.current;
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
-    c.getContext("2d").drawImage(v, 0, 0);
+    const ctx = c.getContext("2d");
+
+    // Rotate 90 degrees anticlockwise: swap width/height and rotate
+    c.width = v.videoHeight;
+    c.height = v.videoWidth;
+
+    // Save context state
+    ctx.save();
+
+    // Translate and rotate for 90 degrees anticlockwise
+    ctx.translate(0, c.height);
+    ctx.rotate(-Math.PI / 2);
+
+    // Draw the rotated image
+    ctx.drawImage(v, 0, 0, v.videoWidth, v.videoHeight);
+
+    // Restore context state
+    ctx.restore();
+
     const dataUrl = c.toDataURL("image/jpeg", 0.9);
     streamObj?.getTracks().forEach(t => t.stop());
     onCapture(dataUrl);
@@ -394,7 +410,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
             <RotateCcw className="w-8 h-8" style={{ color: '#7ec8f0' }} />
           </div>
           <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>Rotate to Landscape</h3>
-          <p className="text-white/60 text-sm">Hold your phone horizontally to capture the full windshield</p>
+          <p className="text-white/60 text-sm">Hold your phone horizontally to capture the photo</p>
         </div>
       )}
 
@@ -569,20 +585,10 @@ function SuccessScreen({ reqId }) {
       <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 fade-up ws-blue-bg">
         <Check className="w-10 h-10 text-white" />
       </div>
-      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>Claim Submitted</h2>
-      <p className="text-gray-500 text-sm leading-relaxed mb-3 fade-up-1">
-        Your windshield claim has been submitted successfully. Our team will assess the damage and get back to you shortly.
+      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>Submission Successful</h2>
+      <p className="text-gray-500 text-sm leading-relaxed mb-8 fade-up-1">
+        Your claim has been submitted successfully. Our team will review and contact you shortly.
       </p>
-      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-8 fade-up-1"
-        style={{ background: '#eef5fb', border: '1px solid #b3d4ed' }}>
-        <WindshieldIcon size={14} color="#1e6fa8" />
-        <span className="text-xs font-semibold ws-blue">Windshield Claim</span>
-      </div>
-      <div className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 fade-up-2">
-        <p className="text-xs text-gray-400 mb-1">Claim Reference</p>
-        <p className="font-syne font-bold text-gray-800 text-lg tracking-wider" style={{ fontWeight: 700 }}>{reqId}</p>
-        <p className="text-xs text-gray-400 mt-1">Keep this reference to track your windshield claim</p>
-      </div>
     </div>
   );
 }

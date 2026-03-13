@@ -15,11 +15,13 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const streamRef = useRef(null);
     const [streamReady, setStreamReady] = useState(false);
     const [capturedFlash, setCapturedFlash] = useState(false);
+    const [showLandscapeModal, setShowLandscapeModal] = useState(true);
 
     const {
         videoRef,
         canvasRef,
         currentSide,
+        currentSideIndex,
         sideOrder,
         sideLabels,
         bbox,
@@ -27,7 +29,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         capturedSides,
         captureResult,
         pendingPhoto,
-        responseTimes, // DEBUG: remove later
         status,
         connect,
         disconnect,
@@ -40,32 +41,17 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         onAllCaptured,
     });
 
-    const [showLandscapeModal, setShowLandscapeModal] = useState(false);
-    const [dismissedLandscapeFor, setDismissedLandscapeFor] = useState(null);
-
     // Track the previous side to detect transitions (flash effect)
-    const prevSideRef = useRef(currentSide);
+    const prevSideIndexRef = useRef(currentSideIndex);
     useEffect(() => {
-        if (currentSide && prevSideRef.current && currentSide !== prevSideRef.current) {
+        if (currentSideIndex > prevSideIndexRef.current && currentSideIndex <= sideOrder.length) {
             setCapturedFlash(true);
             const t = setTimeout(() => setCapturedFlash(false), 600);
-            prevSideRef.current = currentSide;
+            prevSideIndexRef.current = currentSideIndex;
             return () => clearTimeout(t);
         }
-        prevSideRef.current = currentSide;
-    }, [currentSide]);
-
-    // Suggest the user switch to landscape orientation when capturing left/right
-    useEffect(() => {
-        const update = () => {
-            const isPortrait = window.innerHeight > window.innerWidth;
-            const isLR = currentSide === "left" || currentSide === "right";
-            setShowLandscapeModal(isPortrait && isLR && dismissedLandscapeFor !== currentSide);
-        };
-        update();
-        window.addEventListener("resize", update);
-        return () => window.removeEventListener("resize", update);
-    }, [currentSide, dismissedLandscapeFor]);
+        prevSideIndexRef.current = currentSideIndex;
+    }, [currentSideIndex, sideOrder.length]);
 
     // Acquire camera stream
     useEffect(() => {
@@ -96,14 +82,14 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         };
     }, [videoRef]);
 
-    // Connect to WebSocket once camera stream is ready
+    // Connect to WebSocket once camera stream is ready and the modal is dismissed
     const hasConnectedRef = useRef(false);
     useEffect(() => {
-        if (streamReady && !hasConnectedRef.current) {
+        if (streamReady && !showLandscapeModal && !hasConnectedRef.current) {
             hasConnectedRef.current = true;
             connect();
         }
-    }, [streamReady, connect]);
+    }, [streamReady, showLandscapeModal, connect]);
 
     // Draw bounding box on overlay canvas
     const overlayCanvasRef = useRef(null);
@@ -174,17 +160,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const isComplete = status === "done";
     const isConnected = status === "connected";
 
-    const capturedCount = Object.values(capturedSides).filter(Boolean).length;
-    const remainingCount = sideOrder.length - capturedCount;
-    const captureIndexDisplay = Math.min(capturedCount + 1, sideOrder.length);
-    const isLastCapture = remainingCount <= 1;
-
-    const promptSideLabel = currentSide === "front"
-        ? sideLabels.front
-        : currentSide === "rear"
-            ? sideLabels.rear
-            : "Any Side";
-
     return (
         <div className="h-screen bg-black flex flex-col relative overflow-hidden">
             <style>{`
@@ -221,64 +196,35 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
         .instruction-card {
           background: rgba(0,0,0,0.6); backdrop-filter: blur(16px);
-          border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
-          padding: 14px 18px; max-height: 220px; overflow-y: auto;
+          border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px 20px;
         }
       `}</style>
 
-            {showLandscapeModal && (
-                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-6">
-                    <div className="max-w-sm w-full text-center bg-black/80 border border-white/10 rounded-2xl p-6">
-                        <div className="text-white text-lg font-bold mb-2">Hold phone in landscape</div>
-                        <p className="text-white/70 text-sm mb-4">
-                            For best results, rotate your device so it's wider than it is tall and then tap "Got it".
-                        </p>
-                        <button
-                            onClick={() => {
-                                setShowLandscapeModal(false);
-                                setDismissedLandscapeFor(currentSide);
-                            }}
-                            className="px-5 py-2 bg-white text-black rounded-full font-semibold"
-                        >
-                            Got it
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Video area (4:3) */}
+            {/* Video frame — 70vh tall, 4:3 aspect ratio, centered */}
             <div
                 className="absolute left-1/2"
                 style={{
                     top: "10vh",
-                    height: "70vh",
+                    height: "60vh",
                     transform: "translateX(-50%)",
                     width: "min(90vw, calc(70vh * 4 / 3))",
-                    background: "rgba(0,0,0,0.35)",
-                    border: "2px solid rgba(255,255,255,0.25)",
+                    background: "rgba(0,0,0,.35)",
+                    border: "2px solid rgba(255,255,255,.25)",
                     borderRadius: 18,
                     overflow: "hidden",
-                    boxShadow: "0 18px 42px rgba(0,0,0,0.55)",
+                    boxShadow: "0 18px 42px rgba(0,0,0,.55)",
+                    zIndex: 1
                 }}
             >
-                <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
-
-                {/* Freeze-frame of captured photo while verifying */}
-                {pendingPhoto && (
-                    <img
-                        src={pendingPhoto}
-                        alt="Captured preview"
-                        className="absolute inset-0 w-full h-full object-cover rounded-xl"
-                        style={{ zIndex: 5 }}
-                    />
-                )}
-
-                {/* Overlay canvas for bounding box */}
-                <canvas
-                    ref={overlayCanvasRef}
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                    style={{ zIndex: 6 }}
+                <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="absolute inset-0 w-full h-full object-cover"
                 />
+                {/* Overlay canvas for bounding box */}
+                <canvas ref={overlayCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }} />
             </div>
 
             {/* Hidden canvas for frame capture */}
@@ -321,9 +267,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
                 {/* Side progress pills */}
                 <div className="flex gap-2 justify-center flex-wrap">
-                    {sideOrder.map((side) => {
+                    {sideOrder.map((side, i) => {
                         const isCaptured = !!capturedSides[side];
-                        const isActive = side === currentSide && !isComplete;
+                        const isActive = i === currentSideIndex && !isComplete;
                         return (
                             <div key={side} className={`side-pill ${isCaptured ? "completed" : isActive ? "active" : "pending"}`}>
                                 {isCaptured && <CheckCircle className="inline w-3 h-3 mr-1 -mt-0.5" />}
@@ -333,35 +279,6 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                     })}
                 </div>
             </div>
-
-            {/* DEBUG: Response Time Panel (remove later) */}
-            {/* {responseTimes.length > 0 && (
-                <div
-                    className="absolute top-24 right-3 z-20"
-                    style={{
-                        background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)",
-                        borderRadius: 10, padding: "8px 10px", maxHeight: 220,
-                        overflowY: "auto", minWidth: 160, border: "1px solid rgba(255,255,255,0.1)",
-                    }}
-                >
-                    <div style={{ fontSize: 9, color: "#4ade80", fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        ⏱ Response Times
-                    </div>
-                    {responseTimes.map((rt, i) => (
-                        <div key={i} style={{ fontSize: 10, color: rt.ms > 2000 ? "#fca5a5" : rt.ms > 1000 ? "#fde68a" : "#d1d5db", display: "flex", justifyContent: "space-between", gap: 8, lineHeight: "18px" }}>
-                            <span style={{ color: "#9ca3af" }}>#{rt.frame}</span>
-                            <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{rt.ms}ms</span>
-                        </div>
-                    ))}
-                    <div style={{ marginTop: 4, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 4, fontSize: 10, color: "#9ca3af", display: "flex", justifyContent: "space-between" }}>
-                        <span>Avg</span>
-                        <span style={{ fontWeight: 600, color: "#4ade80" }}>
-                            {Math.round(responseTimes.reduce((a, b) => a + b.ms, 0) / responseTimes.length)}ms
-                        </span>
-                    </div>
-                </div>
-            )} */}
-            {/* END DEBUG */}
 
             {/* ─── Bottom section ─── */}
             <div
@@ -375,11 +292,11 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             <div className="flex items-center gap-2">
                                 <Camera className="w-4 h-4 text-green-400" />
                                 <span className="text-white font-syne text-sm font-bold" style={{ fontWeight: 700 }}>
-                                    {promptSideLabel}
+                                    {sideLabels[currentSide]}
                                 </span>
                             </div>
                             <span className="text-white/40 text-xs">
-                                {captureIndexDisplay} / {sideOrder.length}
+                                {currentSideIndex + 1} / {sideOrder.length}
                             </span>
                         </div>
 
@@ -423,7 +340,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         {/* Instruction text when idle */}
                         {captureResult === "idle" && (
                             <p className="text-white/60 text-xs mb-4 leading-relaxed">
-                                Point your camera at the <strong className="text-white/90">{promptSideLabel}</strong> of the vehicle and tap <strong className="text-white/90">Capture</strong>.
+                                Point your camera at the <strong className="text-white/90">{currentSide}</strong> of the vehicle and tap <strong className="text-white/90">Capture</strong>.
                             </p>
                         )}
 
@@ -462,7 +379,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                                     onClick={acceptAndNext}
                                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all pulse-btn"
                                 >
-                                    {isLastCapture ? (
+                                    {currentSideIndex + 1 >= sideOrder.length ? (
                                         <><CheckCircle className="w-4 h-4" /> Finish</>
                                     ) : (
                                         <><ChevronRight className="w-4 h-4" /> Next</>
@@ -481,6 +398,27 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                     </div>
                 ) : null}
             </div>
+
+            {/* Landscape Instruction Modal */}
+            {showLandscapeModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-gray-900 border border-white/20 p-6 rounded-2xl w-full max-w-sm text-center fade-up shadow-2xl">
+                        <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
+                            <RotateCcw className="w-8 h-8 text-white" />
+                        </div>
+                        <h3 className="text-xl font-syne font-bold text-white mb-2">Capture in Landscape</h3>
+                        <p className="text-white/70 text-sm mb-6 leading-relaxed">
+                            For the most accurate recognition, please hold your phone horizontally (Landscape mode) when capturing the four sides of the vehicle.
+                        </p>
+                        <button
+                            onClick={() => setShowLandscapeModal(false)}
+                            className="w-full py-3 bg-white text-black font-bold rounded-xl active:scale-95 transition-transform"
+                        >
+                            I understand
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
