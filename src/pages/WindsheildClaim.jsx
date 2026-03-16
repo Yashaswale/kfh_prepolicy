@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { editInspectionOcr, uploadWindshieldImages, startWindshieldAssessment } from "../api";
+import { editInspectionOcr, uploadWindshieldImages, startWindshieldAssessment, editWindshieldAi } from "../api";
 // ─── Helpers ───────────────────────────────────────────────────────────────────────────────
 function dataUrlToBlob(dataUrl) {
   const arr = dataUrl.split(",");
@@ -36,14 +36,29 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
   const [color, setColor] = useState("#ef4444");
   const [lineWidth, setLineWidth] = useState(3);
   const [history, setHistory] = useState([]);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const lastPos = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
+    // Proxy media URLs through Vite dev server to bypass CORS
+    const proxyUrl = imageUrl.replace('https://api.dezzex.ae/media/', '/media/');
+
+    // Set initial canvas size so it's visible
+    canvas.width = 700;
+    canvas.height = 400;
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 700, 400);
+    ctx.fillStyle = '#666';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Loading image...', 350, 200);
+
     // Fetch image as blob to bypass CORS restrictions
-    fetch(imageUrl)
+    fetch(proxyUrl)
       .then(res => res.blob())
       .then(blob => {
         const objectUrl = URL.createObjectURL(blob);
@@ -53,22 +68,39 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
           canvas.height = img.naturalHeight || 400;
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           setHistory([canvas.toDataURL()]);
+          setImageLoaded(true);
           URL.revokeObjectURL(objectUrl);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          loadFallback();
         };
         img.src = objectUrl;
       })
       .catch(() => {
-        // Fallback: try direct load
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = imageUrl;
-        img.onload = () => {
-          canvas.width = img.naturalWidth || 700;
-          canvas.height = img.naturalHeight || 400;
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          setHistory([canvas.toDataURL()]);
-        };
+        loadFallback();
       });
+
+    function loadFallback() {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        canvas.width = img.naturalWidth || 700;
+        canvas.height = img.naturalHeight || 400;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        setHistory([canvas.toDataURL()]);
+        setImageLoaded(true);
+      };
+      img.onerror = () => {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#f44';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Failed to load image', canvas.width / 2, canvas.height / 2);
+      };
+      img.src = proxyUrl;
+    }
   }, [imageUrl]);
 
   const getPos = (e) => {
@@ -401,18 +433,49 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
   const [editedWsImages, setEditedWsImages] = useState({});
-  const [fullscreenImage, setFullscreenImage] = useState(null); // { url, label }
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const printRef = useRef(null);
 
   const handleExportPDF = () => {
     window.print();
   };
 
-  const handleSaveEdit = (dataUrl) => {
+  // Helper: convert dataUrl to Blob
+  const dataUrlToBlob = (dataUrl) => {
+    const [header, data] = dataUrl.split(",");
+    const mime = header.match(/:(.*?);/)[1];
+    const bytes = atob(data);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  };
+
+  const handleSaveEdit = async (dataUrl) => {
+    // Update local state immediately
     if (editingImage?.wsIndex !== undefined) {
       setEditedWsImages(prev => ({ ...prev, [editingImage.wsIndex]: dataUrl }));
     } else {
       setEditedAiImage(dataUrl);
+    }
+
+    // Call the edit-windshield-ai API
+    const mediaId = editingImage?.mediaId;
+    if (mediaId) {
+      setSavingEdit(true);
+      try {
+        const blob = dataUrlToBlob(dataUrl);
+        const imageFile = new File([blob], 'edited_windshield.jpg', { type: 'image/jpeg' });
+        const formData = new FormData();
+        formData.append('ai_image', imageFile);
+        formData.append('ai_result', editingImage?.aiResult || '');
+        await editWindshieldAi(mediaId, formData);
+        console.log('[WindshieldResult] editWindshieldAi success for mediaId:', mediaId);
+      } catch (err) {
+        console.error('[WindshieldResult] editWindshieldAi error:', err);
+      } finally {
+        setSavingEdit(false);
+      }
     }
   };
 
@@ -594,72 +657,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
           )}
         </SectionCard>
 
-        {/* Wind Shield Section — only show when windshield OCR data exists */}
-        {!ocrLoading && (windshieldOriginal || windshieldAi || windshieldDamageText || inspectionRow?.damage) && (
-          <SectionCard>
-            <h3 className="text-sm font-bold text-gray-900 mb-4">Wind Shield</h3>
 
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              {/* Original */}
-              {windshieldOriginal && (
-                <div>
-                  <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                    onClick={() => setFullscreenImage({ url: windshieldOriginal, label: 'Original Windshield' })}>
-                    <img src={windshieldOriginal} alt="Original windshield" className="w-full h-full object-cover" />
-                    <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2">
-                      <span className="text-white text-xs font-medium">Original Image</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Windshield Damage */}
-              {(windshieldAi || editedAiImage) && (
-                <div>
-                  <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                    onClick={() => setFullscreenImage({ url: editedAiImage || windshieldAi, label: 'Windshield Damage' })}>
-                    <img src={editedAiImage || windshieldAi} alt="Windshield damage" className="w-full h-full object-cover" />
-
-                    <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-4 py-2 flex items-center justify-between">
-                      <span className="text-white text-xs font-medium">Windshield Damage</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingImage(windshieldAi); }}
-                        className="no-print flex items-center gap-1.5 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                        </svg>
-                        Edit Result
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Detected text from windshield damage if available */}
-            {windshieldDamageText && (
-              <div className="mt-4">
-                <FieldRow label="Damage Detection" value={windshieldDamageText} />
-              </div>
-            )}
-
-            {/* Damage details from inspection row */}
-            {inspectionRow?.damage && (
-              <div className="grid grid-cols-2 gap-10 mt-4">
-                <div>
-                  <p className="text-sm font-bold text-gray-900 mb-2">Damage Level</p>
-                  <div className="bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full inline-block ${inspectionRow.damage === "Major Damage" ? "bg-red-500" :
-                      inspectionRow.damage === "Minor Damage" ? "bg-orange-400" : "bg-gray-400"
-                      }`} />
-                    {inspectionRow.damage}
-                  </div>
-                </div>
-              </div>
-            )}
-          </SectionCard>
-        )}
 
         {/* Windshield Results */}
         {windshieldData && (
@@ -733,7 +731,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                           <span className="text-white text-xs font-medium">Plate Image</span>
                           {plateUrl && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); setEditingImage({ url: buildUrl(wsData.plate_image), wsIndex: 0 }); }}
+                              onClick={(e) => { e.stopPropagation(); setEditingImage({ url: buildUrl(wsData.plate_image), wsIndex: 0, mediaId: wsData.id, aiResult: wsData.ai_result || '' }); }}
                               className="no-print flex items-center gap-1 px-2 py-0.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-md transition-colors"
                             >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">

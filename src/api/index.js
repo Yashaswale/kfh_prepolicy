@@ -151,3 +151,29 @@ export function getWindshieldResults(inspectionId) {
   const path = `${ENDPOINTS.windshieldResultsBase}/${inspectionId}/`;
   return apiRequest(path, { method: 'GET' });
 }
+
+// PUT /customers/inspection/edit-damage-ai/{media_id}/
+// formData: ai_image (file), ai_result (string)
+export function editDamageAi(mediaId, formData) {
+  if (!mediaId) {
+    return Promise.reject(new Error('Media id is required for editing damage AI'));
+  }
+  const path = `${ENDPOINTS.editDamageAiBase}/${mediaId}/`;
+  return apiRequestForm(path, {
+    method: 'PUT',
+    formData,
+  });
+}
+
+// PUT /customers/inspection/edit-windshield-ai/{media_id}/
+// formData: ai_image (file), ai_result (string)
+export function editWindshieldAi(mediaId, formData) {
+  if (!mediaId) {
+    return Promise.reject(new Error('Media id is required for editing windshield AI'));
+  }
+  const path = `${ENDPOINTS.editWindshieldAiBase}/${mediaId}/`;
+  return apiRequestForm(path, {
+    method: 'PUT',
+    formData,
+  });
+}

@@ -664,51 +664,66 @@ export default function WindshieldClaim() {
       const windshieldFormData = new FormData();
       if (unique_id) windshieldFormData.append("unique_id", unique_id);
       
-      let hasWindshieldPhotos = false;
+      let hasPlateImage = false;
+      let hasCloseupImage = false;
 
-      photos.forEach((photo) => {
-        if (!photo?.dataUrl) return;
+      // Filter to only valid photos with actual data
+      const validPhotos = photos.filter(p => p && p.dataUrl);
+      console.log(`[Windshield Submit] Total photos: ${photos.length}, Valid photos: ${validPhotos.length}`);
+      validPhotos.forEach(p => console.log(`  - ${p.sideId}: dataUrl length = ${p.dataUrl?.length || 0}`));
+
+      validPhotos.forEach((photo) => {
         const blob = dataUrlToBlob(photo.dataUrl);
         const imageFile = new File([blob], `${photo.sideId}.jpg`, { type: "image/jpeg" });
+        console.log(`[Windshield Submit] Processing ${photo.sideId}: blob size = ${blob.size}, file size = ${imageFile.size}`);
 
         if (photo.sideId === "license_plate" || photo.sideId === "chassis_no") {
           const formData = new FormData();
           if (unique_id) formData.append("unique_id", unique_id);
           formData.append("type", photo.sideId);
           formData.append("image", imageFile);
-          
-          console.log(`Sending formData for ${photo.sideId}:`);
-          for (let [key, val] of formData.entries()) {
-            console.log(`  ${key}:`, val);
-          }
 
           ocrPromises.push(
             uploadInspectionOcr(formData).catch(err => console.error(`Error uploading ${photo.sideId}:`, err))
           );
         } else if (photo.sideId === "windshield_plate") {
           windshieldFormData.append("windshield_plate_image", imageFile);
-          hasWindshieldPhotos = true;
+          hasPlateImage = true;
         } else if (photo.sideId === "windshield_damage") {
           windshieldFormData.append("windshield_closeup_image", imageFile);
-          hasWindshieldPhotos = true;
+          hasCloseupImage = true;
         }
       });
 
-      const promises = [...ocrPromises];
-      if (hasWindshieldPhotos) {
-        console.log(`Sending formData for windshield images:`);
-        for (let [key, val] of windshieldFormData.entries()) {
-          console.log(`  ${key}:`, val);
-        }
-        promises.push(
-          uploadWindshieldImages(windshieldFormData).catch(err => console.error(`Error uploading windshield images:`, err))
-        );
+      // Step 1: Fire OCR uploads in parallel (non-blocking)
+      if (ocrPromises.length > 0) {
+        await Promise.all(ocrPromises);
+        console.log(`[Windshield Submit] OCR uploads complete`);
       }
 
-      const startAssessmentPromise = startWindshieldAssessment({ unique_id: unique_id }).catch(err => console.error('Error starting assessment:', err));
-      promises.push(startAssessmentPromise);
+      // Step 2: Upload windshield images and wait for success
+      console.log(`[Windshield Submit] hasPlateImage: ${hasPlateImage}, hasCloseupImage: ${hasCloseupImage}`);
 
-      await Promise.all(promises);
+      if (hasPlateImage || hasCloseupImage) {
+        console.log(`[Windshield Submit] windshieldFormData entries:`);
+        for (let [key, val] of windshieldFormData.entries()) {
+          if (val instanceof File) {
+            console.log(`  ${key}: File(name=${val.name}, size=${val.size}, type=${val.type})`);
+          } else {
+            console.log(`  ${key}: ${val}`);
+          }
+        }
+
+        const uploadRes = await uploadWindshieldImages(windshieldFormData);
+        console.log(`[Windshield Submit] uploadWindshieldImages success:`, uploadRes);
+
+        // Step 3: Only after upload succeeds, start the assessment
+        console.log(`[Windshield Submit] Now starting windshield assessment...`);
+        const assessmentRes = await startWindshieldAssessment({ unique_id: unique_id });
+        console.log(`[Windshield Submit] startWindshieldAssessment success:`, assessmentRes);
+      } else {
+        console.warn(`[Windshield Submit] No windshield photos found to upload!`);
+      }
 
     } catch (err) {
       console.error('Submit error:', err);

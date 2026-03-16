@@ -9,4 +9,13 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
+  server: {
+    proxy: {
+      '/media': {
+        target: 'https://api.dezzex.ae',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 })

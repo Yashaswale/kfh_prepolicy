@@ -210,7 +210,7 @@ export default function Dashboard() {
               id: item.id ?? index + 1,
               name: item.customer_name ?? "-",
               email: item.email ?? "",
-              type: item.type ?? "",
+              type: item.type_display ?? "",
               policyNumber: item.policy_number ?? "",
               damageLevel: item.damage_level ?? "",
               date: dateStr,
@@ -411,19 +411,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Show entries + total */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Show</span>
-              <select
-                value={showEntries}
-                onChange={(e) => { setShowEntries(+e.target.value); setPage(1); }}
-                className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-700 bg-white outline-none"
-              >
-                {[10, 15, 25, 50].map((n) => <option key={n}>{n}</option>)}
-              </select>
-              <span className="text-sm text-gray-600">Entries</span>
-            </div>
+          {/* Total */}
+          <div className="flex items-center justify-end mt-4">
             <span className="text-sm font-semibold text-gray-700">
               Total List : {loadingRows ? "…" : computedTotalCount}
             </span>
@@ -465,7 +454,7 @@ export default function Dashboard() {
                   <td className="px-3 py-3 text-sm text-gray-500">{baseIndex + idx + 1}</td>
                   <td className="px-3 py-3 text-sm text-gray-800 font-medium">{t.name}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.email}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{t.type}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{t.type_display}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.policyNumber}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.date}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{t.time}</td>

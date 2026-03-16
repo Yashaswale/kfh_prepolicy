@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
 import PrePolicyAssessmentResult from "../pages/Pre-policy";
 import WindShieldAssessmentResult from "../pages/WindsheildClaim";
 import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults, regenerateInspectionLink } from "../api";
+import { clearAuthData } from "../utils/auth";
 
 // ---- Icons ----
 const KFHLogo = () => (
@@ -269,8 +271,9 @@ const TAB_TYPE_MAP = {
 
 // ---- Main Component ----
 export default function App() {
-  const [activeTab, setActiveTab] = useState("pre");
-  const [activeNav, setActiveNav] = useState("dashboard");
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem("dash_activeTab") || "pre");
+  const [activeNav, setActiveNav] = useState(() => sessionStorage.getItem("dash_activeNav") || "dashboard");
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState([]);
   const [allChecked, setAllChecked] = useState(true);
@@ -285,9 +288,52 @@ export default function App() {
   const [showSendLink, setShowSendLink] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
   const [rowsError, setRowsError] = useState("");
-  // Detail view state — replaces the old inline OCR modal
-  const [detailView, setDetailView] = useState(null);   // { row, ocrData, ocrLoading, ocrError }
+  const [detailView, setDetailView] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showLogout, setShowLogout] = useState(false);
+  const logoutRef = useRef(null);
+
+  // Persist activeTab and activeNav to sessionStorage
+  useEffect(() => { sessionStorage.setItem("dash_activeTab", activeTab); }, [activeTab]);
+  useEffect(() => { sessionStorage.setItem("dash_activeNav", activeNav); }, [activeNav]);
+
+  // Close logout dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (logoutRef.current && !logoutRef.current.contains(e.target)) setShowLogout(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleLogout = () => {
+    clearAuthData();
+    sessionStorage.clear();
+    navigate("/");
+  };
+
+  // Clear filters when switching tabs
+  const switchTab = (tabKey) => {
+    setActiveTab(tabKey);
+    setSearch("");
+    setDebouncedSearch("");
+    setStatusFilter("All Status");
+    setSortBy("Newest First");
+    setDateFrom("");
+    setDateTo("");
+    setCurrentPage(1);
+  };
+
+  const switchNav = (navKey) => {
+    setActiveNav(navKey);
+    setSearch("");
+    setDebouncedSearch("");
+    setStatusFilter("All Status");
+    setSortBy("Newest First");
+    setDateFrom("");
+    setDateTo("");
+    setCurrentPage(1);
+  };
 
   // Debounce search input — only trigger API after 500ms of no typing
   useEffect(() => {
@@ -354,6 +400,7 @@ export default function App() {
             }
             return {
               id: item.id ?? index + 1,
+              unique_verify_id: item.unique_verify_id ?? "",
               name: item.customer_name ?? "-",
               email: item.email ?? "",
               policy: item.policy_number ?? "",
@@ -473,19 +520,31 @@ export default function App() {
       {/* ── Top Nav ── */}
       <header className="bg-white border-b border-gray-200 px-6 flex items-center justify-between h-14">
         <KFHLogo />
-        <div className="flex items-center gap-1 text-gray-700 cursor-pointer hover:text-green-600 transition">
-          <svg className="w-7 h-7 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-          </svg>
-          <span className="font-medium">Yash Aswale</span>
-          <ChevronDown />
+        <div className="relative" ref={logoutRef}>
+          <div onClick={() => setShowLogout(!showLogout)} className="flex items-center gap-1 text-gray-700 cursor-pointer hover:text-green-600 transition select-none">
+            <svg className="w-7 h-7 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+            </svg>
+            <span className="font-medium">Admin</span>
+            <ChevronDown />
+          </div>
+          {showLogout && (
+            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition font-medium rounded-lg"
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
       {/* ── Sub Nav ── */}
       <div className="bg-gray-800 flex items-center px-4 h-12">
         <button
-          onClick={() => setActiveNav("dashboard")}
+          onClick={() => switchNav("dashboard")}
           className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition ${activeNav === "dashboard" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -494,7 +553,7 @@ export default function App() {
           Dashboard
         </button>
         <button
-          onClick={() => setActiveNav("transaction")}
+          onClick={() => switchNav("transaction")}
           className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition ${activeNav === "transaction" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -518,7 +577,7 @@ export default function App() {
             {TABS.map(tab => (
               <button
                 key={tab.key}
-                onClick={() => { setActiveTab(tab.key); setCurrentPage(1); }}
+                onClick={() => switchTab(tab.key)}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium border transition
                   ${activeTab === tab.key
                     ? "bg-green-500 text-white border-green-500"
@@ -557,6 +616,10 @@ export default function App() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 autoComplete="off"
+                name="dashboard_search_nofill"
+                id="dashboard_search_nofill"
+                readOnly
+                onFocus={(e) => e.target.removeAttribute('readOnly')}
                 className="outline-none text-sm text-gray-600 placeholder-gray-400 w-full"
               />
             </div>
@@ -593,16 +656,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Show entries + total */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Show</span>
-              <div className="flex items-center gap-1 border border-gray-300 rounded px-2 py-1 cursor-pointer select-none">
-                <span>15</span>
-                <ChevronDown />
-              </div>
-              <span>Entries</span>
-            </div>
+          {/* Total */}
+          <div className="flex items-center justify-end px-4 py-3 border-b border-gray-100">
             <div className="text-sm text-gray-600">
               Total List : <span className="font-semibold">{rows.length}</span>
             </div>

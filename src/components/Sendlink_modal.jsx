@@ -21,8 +21,8 @@ const SendLinkModal = ({ onClose }) => {
     setError("");
     setSuccess("");
 
-    if (!form.name || !form.email || !form.phone || !form.policy || !form.claim) {
-      setError("Please fill in all required fields.");
+    if (!form.name || !form.email || !form.phone) {
+      setError("Please fill in all required fields (Name, Email, Phone).");
       return;
     }
 
@@ -115,7 +115,7 @@ const SendLinkModal = ({ onClose }) => {
             <label className="block text-[13px] font-semibold text-gray-700 mb-3">
               Type <span className="text-red-500">*</span>
             </label>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-nowrap gap-3">
               {types.map((t) => (
                 <label
                   key={t.id}
@@ -153,30 +153,35 @@ const SendLinkModal = ({ onClose }) => {
               label: "Name of the Customer",
               placeholder: "Enter full name",
               type: "text",
+              required: true,
             },
             {
               id: "email",
               label: "Customer Email Address",
               placeholder: "Enter email",
               type: "email",
+              required: true,
             },
             {
               id: "phone",
               label: "Customer Phone Number",
               placeholder: "Enter phone no",
               type: "tel",
+              required: true,
             },
             {
               id: "policy",
               label: "Customer Policy Number",
               placeholder: "Enter policy number",
               type: "text",
+              required: false,
             },
             {
               id: "claim",
               label: "Claim Number",
               placeholder: "Enter claim number",
               type: "text",
+              required: false,
             },
           ].map((field) => (
             <div key={field.id}>
@@ -184,7 +189,7 @@ const SendLinkModal = ({ onClose }) => {
                 htmlFor={field.id}
                 className="block text-[13px] font-semibold text-gray-700 mb-1.5"
               >
-                {field.label} <span className="text-red-500">*</span>
+                {field.label} {field.required && <span className="text-red-500">*</span>}
               </label>
               <input
                 id={field.id}

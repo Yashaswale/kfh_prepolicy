@@ -21,4 +21,6 @@ export const ENDPOINTS = {
   editOcrBase: '/customers/inspection/edit-ocr',
   damageResultsBase: '/customers/inspection',
   windshieldResultsBase: '/customers/inspection/windshield-results',
+  editDamageAiBase: '/customers/inspection/edit-damage-ai',
+  editWindshieldAiBase: '/customers/inspection/edit-windshield-ai',
 };
