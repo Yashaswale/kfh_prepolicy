@@ -22,4 +22,3 @@ export const ENDPOINTS = {
   damageResultsBase: '/customers/inspection',
   windshieldResultsBase: '/customers/inspection/windshield-results',
 };
-

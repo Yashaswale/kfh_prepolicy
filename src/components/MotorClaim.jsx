@@ -335,7 +335,6 @@ function CameraCapture({ step, stepIndex, totalRequired, isExtra, extraLabel, on
     c.height = v.videoHeight;
     c.getContext("2d").drawImage(v, 0, 0);
     const dataUrl = c.toDataURL("image/jpeg", 0.9);
-    streamObj?.getTracks().forEach(t => t.stop());
     onCapture(dataUrl);
   };
 

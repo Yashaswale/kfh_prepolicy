@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2, Trash2, Wind } from "lucide-react";
-import { getDamageResults, uploadInspectionOcr } from "../api";
-import WindShieldAssessmentResult from "../pages/WindsheildClaim";
+import { uploadWindshieldImages, startWindshieldAssessment, uploadInspectionOcr } from "../api";
 
 // ─── STEPS ────────────────────────────────────────────────────────────────────
 const STEPS = [
@@ -316,7 +316,7 @@ function PermissionsScreen({ onGranted }) {
 }
 
 // ─── SCREEN 5: CAMERA CAPTURE ────────────────────────────────────────────────
-function CameraCapture({ step, stepIndex, onCapture, onBack }) {
+function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRotation, setHasAcknowledgedRotation }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
@@ -372,11 +372,10 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
     ctx.restore();
 
     const dataUrl = c.toDataURL("image/jpeg", 0.9);
-    streamObj?.getTracks().forEach(t => t.stop());
     onCapture(dataUrl);
   };
 
-  const orientationOk = !needsLandscape || isLandscape;
+  const orientationOk = isLandscape || hasAcknowledgedRotation;
 
   return (
     <div className="h-screen bg-black flex flex-col relative overflow-hidden">
@@ -410,7 +409,12 @@ function CameraCapture({ step, stepIndex, onCapture, onBack }) {
             <RotateCcw className="w-8 h-8" style={{ color: '#7ec8f0' }} />
           </div>
           <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>Rotate to Landscape</h3>
-          <p className="text-white/60 text-sm">Hold your phone horizontally to capture the photo</p>
+          <p className="text-white/60 text-sm mb-6">Hold your phone horizontally to capture the photo</p>
+          <button onClick={() => setHasAcknowledgedRotation(true)}
+            className="px-8 py-3 rounded-2xl text-white font-syne font-bold text-base active:scale-95 transition-transform"
+            style={{ fontWeight: 700, background: '#1e6fa8' }}>
+            Got It
+          </button>
         </div>
       )}
 
@@ -595,19 +599,14 @@ function SuccessScreen({ reqId }) {
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function WindshieldClaim() {
+  const { unique_id } = useParams();
   const [screen, setScreen] = useState("landing");
   const [captureIndex, setCaptureIndex] = useState(0);
+  const [hasAcknowledgedRotation, setHasAcknowledgedRotation] = useState(false);
   const [photos, setPhotos] = useState([]);
   const [retakeIndex, setRetakeIndex] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reqId] = useState(() => "WS-" + Date.now().toString(36).toUpperCase());
-
-  // Results state
-  const [inspectionId, setInspectionId] = useState(null);
-  const [damageResults, setDamageResults] = useState(null);
-  const [resultsLoading, setResultsLoading] = useState(false);
-  const [resultsError, setResultsError] = useState(null);
-  const [ocrData, setOcrData] = useState(null);
 
   const handleCapture = (dataUrl) => {
     const idx = retakeIndex !== null ? retakeIndex : captureIndex;
@@ -659,66 +658,63 @@ export default function WindshieldClaim() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    setResultsLoading(true);
-    setResultsError(null);
-    setDamageResults(null);
-    setOcrData(null);
 
     try {
-      // Upload all photos via OCR endpoint
-      // Get unique_id from URL search params if available
-      const urlParams = new URLSearchParams(window.location.search);
-      const uniqueId = urlParams.get('unique_id') || urlParams.get('id') || '';
+      const ocrPromises = [];
+      const windshieldFormData = new FormData();
+      if (unique_id) windshieldFormData.append("unique_id", unique_id);
+      
+      let hasWindshieldPhotos = false;
 
-      let uploadedId = inspectionId;
-
-      for (const photo of photos) {
-        if (!photo?.dataUrl) continue;
+      photos.forEach((photo) => {
+        if (!photo?.dataUrl) return;
         const blob = dataUrlToBlob(photo.dataUrl);
         const imageFile = new File([blob], `${photo.sideId}.jpg`, { type: "image/jpeg" });
 
-        const formData = new FormData();
-        if (uniqueId) formData.append("unique_id", uniqueId);
-        formData.append("type", photo.sideId);
-        formData.append("image", imageFile);
+        if (photo.sideId === "license_plate" || photo.sideId === "chassis_no") {
+          const formData = new FormData();
+          if (unique_id) formData.append("unique_id", unique_id);
+          formData.append("type", photo.sideId);
+          formData.append("image", imageFile);
+          
+          console.log(`Sending formData for ${photo.sideId}:`);
+          for (let [key, val] of formData.entries()) {
+            console.log(`  ${key}:`, val);
+          }
 
-        try {
-          const res = await uploadInspectionOcr(formData);
-          // Capture the inspection ID from upload response if available
-          if (res?.id && !uploadedId) {
-            uploadedId = res.id;
-            setInspectionId(res.id);
-          }
-          if (res?.inspection_id && !uploadedId) {
-            uploadedId = res.inspection_id;
-            setInspectionId(res.inspection_id);
-          }
-        } catch {
-          // swallow — individual upload failures shouldn't block the flow
+          ocrPromises.push(
+            uploadInspectionOcr(formData).catch(err => console.error(`Error uploading ${photo.sideId}:`, err))
+          );
+        } else if (photo.sideId === "windshield_plate") {
+          windshieldFormData.append("windshield_plate_image", imageFile);
+          hasWindshieldPhotos = true;
+        } else if (photo.sideId === "windshield_damage") {
+          windshieldFormData.append("windshield_closeup_image", imageFile);
+          hasWindshieldPhotos = true;
         }
+      });
+
+      const promises = [...ocrPromises];
+      if (hasWindshieldPhotos) {
+        console.log(`Sending formData for windshield images:`);
+        for (let [key, val] of windshieldFormData.entries()) {
+          console.log(`  ${key}:`, val);
+        }
+        promises.push(
+          uploadWindshieldImages(windshieldFormData).catch(err => console.error(`Error uploading windshield images:`, err))
+        );
       }
 
-      // Fetch damage results if we have an inspection ID
-      if (uploadedId) {
-        try {
-          const results = await getDamageResults(uploadedId);
-          setDamageResults(results);
-          // Also set the results as ocrData for the WindShieldAssessmentResult component
-          if (Array.isArray(results)) {
-            setOcrData(results);
-          }
-        } catch (err) {
-          console.error('Failed to fetch damage results:', err);
-          setResultsError(err?.message || 'Failed to fetch assessment results');
-        }
-      }
+      const startAssessmentPromise = startWindshieldAssessment({ unique_id: unique_id }).catch(err => console.error('Error starting assessment:', err));
+      promises.push(startAssessmentPromise);
+
+      await Promise.all(promises);
+
     } catch (err) {
       console.error('Submit error:', err);
-      setResultsError(err?.message || 'Submission failed');
     } finally {
-      setResultsLoading(false);
       setIsSubmitting(false);
-      setScreen("results");
+      setScreen("success");
     }
   };
 
@@ -733,6 +729,8 @@ export default function WindshieldClaim() {
       step={STEPS[captureIndex]}
       stepIndex={captureIndex}
       onCapture={handleCapture}
+      hasAcknowledgedRotation={hasAcknowledgedRotation}
+      setHasAcknowledgedRotation={setHasAcknowledgedRotation}
       onBack={() => {
         if (retakeIndex !== null) { setRetakeIndex(null); setScreen("review"); return; }
         captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1);
@@ -748,20 +746,7 @@ export default function WindshieldClaim() {
       isSubmitting={isSubmitting}
     />
   );
-  if (screen === "results") return (
-    <WindShieldAssessmentResult
-      inspectionRow={{
-        name: "—",
-        email: "—",
-        policy: "—",
-        status: "Submitted",
-        damage: damageResults?.damage_level || damageResults?.damage || null,
-      }}
-      ocrData={ocrData}
-      windshieldData={damageResults}
-      ocrLoading={resultsLoading}
-      ocrError={resultsError}
-      onBack={() => setScreen("review")}
-    />
-  );
+  if (screen === "success") return <SuccessScreen reqId={reqId} />;
+
+  return null;
 }
