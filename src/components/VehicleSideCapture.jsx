@@ -107,9 +107,18 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
 
         if (!bbox || bbox.length < 4) return;
 
-        const [x1, y1, x2, y2] = bbox;
+        // The backend `bbox` coordinates are relative to the -90 degree rotated image (where Width = vh, Height = vw)
+        // We must inversely transform these coordinates back to the native unrotated video layout (Width = vw, Height = vh)
+        const [rx1, ry1, rx2, ry2] = bbox;
         const vw = video.videoWidth || 1;
         const vh = video.videoHeight || 1;
+
+        // Inverse map: rotated_X maps to native_Y, rotated_Y maps to native_(vw - X)
+        const x1 = vw - ry2;
+        const y1 = rx1;
+        const x2 = vw - ry1;
+        const y2 = rx2;
+
         const scaleX = rect.width / vw;
         const scaleY = rect.height / vh;
         const drawX = x1 * scaleX;

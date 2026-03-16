@@ -235,8 +235,11 @@ const STATUS_LABEL_TO_CODE = {
 };
 
 const damageColors = {
-  "Minor Damage": "bg-orange-400",
   "Major Damage": "bg-red-500",
+  "Medium Damage": "bg-orange-500",
+  "Minor Damage": "bg-yellow-500",
+  "No Damage": "bg-green-500",
+  "Damaged": "bg-red-500",
 };
 
 // ---- Tab definitions (outside component to avoid recreation on render) ----
@@ -655,7 +658,7 @@ export default function App() {
                     <td className="px-4 py-3 text-gray-600">{row.time}</td>
                     <td className="px-4 py-3">
                       {row.damage ? (
-                        <span className={`${damageColors[row.damage]} text-white text-xs font-semibold px-3 py-1 rounded`}>
+                        <span className={`${damageColors[row.damage] || "bg-gray-400"} text-white text-xs font-semibold px-3 py-1 rounded`}>
                           {row.damage}
                         </span>
                       ) : (
