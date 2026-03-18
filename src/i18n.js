@@ -138,7 +138,36 @@ const resources = {
       "Windshield Photos": "Windshield Photos",
       "Windshield": "Windshield",
       "Ensure all photos are clear before submitting": "Ensure all photos are clear before submitting",
-      "Submit Claim": "Submit Claim"
+      "Submit Claim": "Submit Claim",
+
+      // VehicleSideCapture
+      "Vehicle Side Detection": "Vehicle Side Detection",
+      "Capture & verify each side": "Capture & verify each side",
+      "Live": "Live",
+      "Connecting": "Connecting",
+      "Error": "Error",
+      "Starting": "Starting",
+      "Verifying…": "Verifying…",
+      "Checking if this is the correct side": "Checking if this is the correct side",
+      "Photo Captured ✓": "Photo Captured ✓",
+      "Detected:": "Detected:",
+      "Wrong side detected": "Wrong side detected",
+      "Got": "Got",
+      "expected": "expected",
+      "Please try again": "Please try again",
+      "Point your camera at the": "Point your camera at the",
+      "of the vehicle and tap": "of the vehicle and tap",
+      "Click Again": "Click Again",
+      "Finish": "Finish",
+      "All Sides Captured!": "All Sides Captured!",
+      "Processing your photos…": "Processing your photos…",
+      "Capture in Landscape": "Capture in Landscape",
+      "For the most accurate recognition, please hold your phone horizontally (Landscape mode) when capturing the four sides of the vehicle.": "For the most accurate recognition, please hold your phone horizontally (Landscape mode) when capturing the four sides of the vehicle.",
+      "I understand": "I understand",
+      "front": "front",
+      "rear": "rear",
+      "left": "left",
+      "right": "right"
     }
   },
   ar: {
@@ -275,7 +304,36 @@ const resources = {
       "Windshield Photos": "صور الزجاج الأمامي",
       "Windshield": "الزجاج الأمامي",
       "Ensure all photos are clear before submitting": "تأكد من وضوح كل الصور قبل لا ترسل",
-      "Submit Claim": "إرسال المطالبة"
+      "Submit Claim": "إرسال المطالبة",
+
+      // VehicleSideCapture
+      "Vehicle Side Detection": "اكتشاف جانب المركبة",
+      "Capture & verify each side": "التقط وتأكد من كل جانب",
+      "Live": "مباشر",
+      "Connecting": "جاري الاتصال",
+      "Error": "خطأ",
+      "Starting": "بدء",
+      "Verifying…": "جاري التحقق...",
+      "Checking if this is the correct side": "نتأكد إذا كان هذا الجانب الصحيح",
+      "Photo Captured ✓": "تم التقاط الصورة ✓",
+      "Detected:": "المكتشف:",
+      "Wrong side detected": "تم اكتشاف جانب خاطئ",
+      "Got": "المكتشف",
+      "expected": "المتوقع",
+      "Please try again": "يرجى المحاولة مرة أخرى",
+      "Point your camera at the": "وجّه الكاميرا إلى",
+      "of the vehicle and tap": "للمركبة واضغط",
+      "Click Again": "حاول مجدداً",
+      "Finish": "إنهاء",
+      "All Sides Captured!": "تم التقاط جميع الجوانب!",
+      "Processing your photos…": "جاري معالجة صورك...",
+      "Capture in Landscape": "التقط بالوضع الأفقي",
+      "For the most accurate recognition, please hold your phone horizontally (Landscape mode) when capturing the four sides of the vehicle.": "للحصول على أفضل نتيجة، خل تلفونك بالعرض لما تصور الجوانب الأربعة للمركبة.",
+      "I understand": "فهمت",
+      "front": "أمام",
+      "rear": "خلف",
+      "left": "يسار",
+      "right": "يمين"
     }
   }
 };

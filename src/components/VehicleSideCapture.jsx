@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { ArrowLeft, Camera, Loader2, Wifi, WifiOff, CheckCircle, XCircle, RotateCcw, ChevronRight } from "lucide-react";
 import useVehicleSideWS from "../hooks/useVehicleSideWS";
 
+import { useTranslation } from "react-i18next";
+
 /**
  * VehicleSideCapture — full-screen camera view with manual capture + WS verification.
  *
@@ -12,6 +14,7 @@ import useVehicleSideWS from "../hooks/useVehicleSideWS";
  *   4. Repeats for all 4 sides.
  */
 export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, onBack, existingPhotos }) {
+    const { t, i18n } = useTranslation();
     const streamRef = useRef(null);
     const [streamReady, setStreamReady] = useState(false);
     const [capturedFlash, setCapturedFlash] = useState(false);
@@ -143,7 +146,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         ctx.beginPath(); ctx.moveTo(drawX + drawW - cornerLen, drawY + drawH); ctx.lineTo(drawX + drawW, drawY + drawH); ctx.lineTo(drawX + drawW, drawY + drawH - cornerLen); ctx.stroke();
 
         const label = lastResponse?.detected
-            ? `${lastResponse.detected.toUpperCase()} ${isCorrect ? "✓" : "✗"}`
+            ? `${t(lastResponse.detected).toUpperCase()} ${isCorrect ? "✓" : "✗"}`
             : "";
         if (label) {
             ctx.font = "bold 14px 'DM Sans', sans-serif";
@@ -170,7 +173,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const isConnected = status === "connected";
 
     return (
-        <div className="h-screen bg-black flex flex-col relative overflow-hidden">
+        <div className="h-screen bg-black flex flex-col relative overflow-hidden" dir={i18n.dir()}>
             <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
@@ -260,17 +263,17 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         </button>
                         <div>
                             <span className="font-syne text-white text-sm font-bold" style={{ fontWeight: 700 }}>
-                                Vehicle Side Detection
+                                {t("Vehicle Side Detection")}
                             </span>
-                            <div className="text-white/50 text-[10px] mt-0.5">Capture & verify each side</div>
+                            <div className="text-white/50 text-[10px] mt-0.5">{t("Capture & verify each side")}</div>
                         </div>
                     </div>
 
                     <div className={`status-badge ${status === "connected" ? "connected" : status === "connecting" ? "connecting" : status === "error" ? "error" : "connecting"}`}>
-                        {status === "connected" ? (<><Wifi className="w-3 h-3" /> Live</>) :
-                            status === "connecting" ? (<><Loader2 className="w-3 h-3 animate-spin" /> Connecting</>) :
-                                status === "error" ? (<><WifiOff className="w-3 h-3" /> Error</>) :
-                                    (<><Loader2 className="w-3 h-3 animate-spin" /> Starting</>)}
+                        {status === "connected" ? (<><Wifi className="w-3 h-3" /> {t("Live")}</>) :
+                            status === "connecting" ? (<><Loader2 className="w-3 h-3 animate-spin" /> {t("Connecting")}</>) :
+                                status === "error" ? (<><WifiOff className="w-3 h-3" /> {t("Error")}</>) :
+                                    (<><Loader2 className="w-3 h-3 animate-spin" /> {t("Starting")}</>)}
                     </div>
                 </div>
 
@@ -282,7 +285,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         return (
                             <div key={side} className={`side-pill ${isCaptured ? "completed" : isActive ? "active" : "pending"}`}>
                                 {isCaptured && <CheckCircle className="inline w-3 h-3 mr-1 -mt-0.5" />}
-                                {sideLabels[side]}
+                                {t(sideLabels[side])}
                             </div>
                         );
                     })}
@@ -301,7 +304,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             <div className="flex items-center gap-2">
                                 <Camera className="w-4 h-4 text-green-400" />
                                 <span className="text-white font-syne text-sm font-bold" style={{ fontWeight: 700 }}>
-                                    {sideLabels[currentSide]}
+                                    {t(sideLabels[currentSide])}
                                 </span>
                             </div>
                             <span className="text-white/40 text-xs">
@@ -314,8 +317,8 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ background: "rgba(234,179,8,0.1)", border: "1px solid rgba(234,179,8,0.2)" }}>
                                 <Loader2 className="w-5 h-5 text-yellow-400 animate-spin shrink-0" />
                                 <div>
-                                    <span className="text-yellow-400 text-sm font-semibold block">Verifying…</span>
-                                    <span className="text-white/50 text-xs">Checking if this is the correct side</span>
+                                    <span className="text-yellow-400 text-sm font-semibold block">{t("Verifying…")}</span>
+                                    <span className="text-white/50 text-xs">{t("Checking if this is the correct side")}</span>
                                 </div>
                             </div>
                         )}
@@ -324,9 +327,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)" }}>
                                 <CheckCircle className="w-5 h-5 text-green-400 shrink-0" />
                                 <div className="flex-1">
-                                    <span className="text-green-400 text-sm font-semibold block">Photo Captured ✓</span>
+                                    <span className="text-green-400 text-sm font-semibold block">{t("Photo Captured ✓")}</span>
                                     <span className="text-white/50 text-xs">
-                                        {lastResponse?.detected && `Detected: ${lastResponse.detected}`}
+                                        {lastResponse?.detected && `${t("Detected:")} ${t(lastResponse.detected)}`}
                                     </span>
                                 </div>
                             </div>
@@ -336,11 +339,11 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
                                 <XCircle className="w-5 h-5 text-red-400 shrink-0" />
                                 <div className="flex-1">
-                                    <span className="text-red-400 text-sm font-semibold block">Wrong side detected</span>
+                                    <span className="text-red-400 text-sm font-semibold block">{t("Wrong side detected")}</span>
                                     <span className="text-white/50 text-xs">
                                         {lastResponse?.detected
-                                            ? `Got "${lastResponse.detected}", expected "${currentSide}"`
-                                            : "Please try again"}
+                                            ? `${t("Got")} "${t(lastResponse.detected)}", ${t("expected")} "${t(sideLabels[currentSide])}"`
+                                            : t("Please try again")}
                                     </span>
                                 </div>
                             </div>
@@ -349,7 +352,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         {/* Instruction text when idle */}
                         {captureResult === "idle" && (
                             <p className="text-white/60 text-xs mb-4 leading-relaxed">
-                                Point your camera at the <strong className="text-white/90">{currentSide}</strong> of the vehicle and tap <strong className="text-white/90">Capture</strong>.
+                                {t("Point your camera at the")} <strong className="text-white/90">{t(sideLabels[currentSide])}</strong> {t("of the vehicle and tap")} <strong className="text-white/90">{t("Capture")}</strong>.
                             </p>
                         )}
 
@@ -368,9 +371,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                                         }`}
                                 >
                                     {captureResult === "failed" ? (
-                                        <><RotateCcw className="w-4 h-4" /> Click Again</>
+                                        <><RotateCcw className="w-4 h-4 mx-1" /> {t("Click Again")}</>
                                     ) : (
-                                        <><Camera className="w-4 h-4" /> Capture</>
+                                        <><Camera className="w-4 h-4 mx-1" /> {t("Capture")}</>
                                     )}
                                 </button>
                             )}
@@ -378,7 +381,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             {/* Verifying state — disabled button */}
                             {captureResult === "verifying" && (
                                 <button disabled className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-gray-700 text-gray-400 cursor-not-allowed">
-                                    <Loader2 className="w-4 h-4 animate-spin" /> Verifying…
+                                    <Loader2 className="w-4 h-4 animate-spin mx-1" /> {t("Verifying…")}
                                 </button>
                             )}
 
@@ -389,9 +392,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all pulse-btn"
                                 >
                                     {currentSideIndex + 1 >= sideOrder.length ? (
-                                        <><CheckCircle className="w-4 h-4" /> Finish</>
+                                        <><CheckCircle className="w-4 h-4 mx-1" /> {t("Finish")}</>
                                     ) : (
-                                        <><ChevronRight className="w-4 h-4" /> Next</>
+                                        <><ChevronRight className="w-4 h-4 mx-1" /> {t("Next")}</>
                                     )}
                                 </button>
                             )}
@@ -401,9 +404,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                     <div className="instruction-card fade-up text-center">
                         <CheckCircle className="w-10 h-10 text-green-400 mx-auto mb-2" />
                         <span className="text-white font-syne text-base font-bold block mb-1" style={{ fontWeight: 700 }}>
-                            All Sides Captured!
+                            {t("All Sides Captured!")}
                         </span>
-                        <p className="text-white/60 text-xs">Processing your photos…</p>
+                        <p className="text-white/60 text-xs">{t("Processing your photos…")}</p>
                     </div>
                 ) : null}
             </div>
@@ -415,15 +418,15 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
                             <RotateCcw className="w-8 h-8 text-white" />
                         </div>
-                        <h3 className="text-xl font-syne font-bold text-white mb-2">Capture in Landscape</h3>
+                        <h3 className="text-xl font-syne font-bold text-white mb-2">{t("Capture in Landscape")}</h3>
                         <p className="text-white/70 text-sm mb-6 leading-relaxed">
-                            For the most accurate recognition, please hold your phone horizontally (Landscape mode) when capturing the four sides of the vehicle.
+                            {t("For the most accurate recognition, please hold your phone horizontally (Landscape mode) when capturing the four sides of the vehicle.")}
                         </p>
                         <button
                             onClick={() => setShowLandscapeModal(false)}
                             className="w-full py-3 bg-white text-black font-bold rounded-xl active:scale-95 transition-transform"
                         >
-                            I understand
+                            {t("I understand")}
                         </button>
                     </div>
                 </div>
