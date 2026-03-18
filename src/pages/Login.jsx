@@ -4,13 +4,7 @@ import { loginUser } from "../api";
 import { setAuthData } from "../utils/auth";
 
 const KFHLogo = () => (
-  <div className="flex items-center gap-2">
-    <img src="/KFH_logo.png" alt="KFH Logo" className="w-10 h-10" />
-    <div>
-      <div className="text-green-500 font-bold text-lg leading-none tracking-widest">KFH</div>
-      <div className="text-green-500 text-xs tracking-widest">TAKAFUL</div>
-    </div>
-  </div>
+  <img src="/KFH_logo.png" alt="KFH Logo" className="h-10 object-contain" />
 );
 
 export default function LoginPage() {

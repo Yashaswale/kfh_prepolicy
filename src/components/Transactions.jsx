@@ -87,7 +87,8 @@ function DamageBadge({ level }) {
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [chartView, setChartView] = useState("Days");
-  const [month, setMonth] = useState("February 2026");
+  const [month, setMonth] = useState("February");
+  const [year, setYear] = useState("2026");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -122,13 +123,11 @@ export default function Dashboard() {
 
     const fetchSummary = async () => {
       setLoadingSummary(true);
-      const [monthLabel] = month.split(" ");
-      const monthCode = monthLabel.toLowerCase().slice(0, 3); // jan, feb, mar...
       const period =
         chartView === "Days" ? "days" : chartView === "Week" ? "weeks" : "months";
 
       try {
-        const data = await getAccountSummary({ month: monthCode, period });
+        const data = await getAccountSummary({ month, year, period });
         if (cancelled || !data) return;
 
         setSummary({
@@ -140,7 +139,6 @@ export default function Dashboard() {
 
         const overTime = data.link_sent_over_time || {};
         const points = Object.entries(overTime)
-          .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([date, value]) => ({
             label: date,
             value: typeof value === "number" ? value : 0,
@@ -165,7 +163,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [month, chartView]);
+  }, [month, year, chartView]);
 
   // Load transactions list from /customers/list/
   useEffect(() => {
@@ -275,7 +273,7 @@ export default function Dashboard() {
             </span>
           </div>
 
-          {/* Month Selector */}
+          {/* Month & Year Selectors */}
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-gray-600">Month</span>
             <select
@@ -283,8 +281,19 @@ export default function Dashboard() {
               onChange={(e) => setMonth(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
             >
-              {["January 2026", "February 2026", "March 2026"].map((m) => (
+              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
                 <option key={m}>{m}</option>
+              ))}
+            </select>
+            
+            <span className="text-sm font-medium text-gray-600 ml-2">Year</span>
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+            >
+              {["2024", "2025", "2026", "2027", "2028"].map((y) => (
+                <option key={y}>{y}</option>
               ))}
             </select>
           </div>

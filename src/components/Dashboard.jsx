@@ -9,17 +9,7 @@ import { clearAuthData } from "../utils/auth";
 
 // ---- Icons ----
 const KFHLogo = () => (
-  <div className="flex items-center gap-2">
-    <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
-      <path d="M20 4 L28 10 L34 18 L32 28 L24 34 L16 34 L8 28 L6 18 L12 10 Z" fill="none" stroke="#22c55e" strokeWidth="2" />
-      <path d="M20 8 L26 13 L30 20 L28 27 L22 31 L18 31 L12 27 L10 20 L14 13 Z" fill="none" stroke="#22c55e" strokeWidth="1.5" />
-      <circle cx="20" cy="20" r="4" fill="#22c55e" />
-    </svg>
-    <div>
-      <div className="text-green-500 font-bold text-base leading-none tracking-widest">KFH</div>
-      <div className="text-green-500 text-[10px] tracking-widest">TAKAFUL</div>
-    </div>
-  </div>
+  <img src="/KFH_logo.png" alt="KFH Logo" className="h-[36px] object-contain" />
 );
 
 const SearchIcon = () => (

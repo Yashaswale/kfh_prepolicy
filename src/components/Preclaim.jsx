@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { verifyInspectionLink, uploadInspectionOcr, uploadDamageImages, startAssessment, getDamageResults } from "../api";
 import VehicleSideCapture from "./VehicleSideCapture";
 
@@ -50,6 +51,22 @@ const GlobalStyle = () => (
   `}</style>
 );
 
+// ─── KFH LOGO + LANG TOGGLE ──────────────────────────────────────────────────
+const KFHHeader = () => {
+  const { i18n } = useTranslation();
+  return (
+    <div className="fade-up w-full flex items-center justify-between mb-8">
+      <img src="/KFH_logo.png" alt="KFH Takaful" className="h-10 object-contain" />
+      <button 
+        onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'ar' : 'en')}
+        className="px-3 py-1.5 bg-gray-100 text-[#1a8a3c] hover:bg-green-50 font-bold rounded-lg text-sm transition-colors"
+      >
+        {i18n.language === 'en' ? 'العربية' : 'English'}
+      </button>
+    </div>
+  );
+};
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function dataUrlToBlob(dataUrl) {
   const arr = dataUrl.split(",");
@@ -89,19 +106,11 @@ function rotateImageCCW90(dataUrl) {
 
 // ─── SCREEN 1 : LANDING ───────────────────────────────────────────────────────
 function Landing({ onStart }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-12">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-12" dir={i18n.dir()}>
       <GlobalStyle />
-      <div className="fade-up flex items-center gap-2 mt-4">
-        <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-          <path d="M19 3 L33 10.5 L33 27.5 L19 35 L5 27.5 L5 10.5 Z" fill="none" stroke="#1a8a3c" strokeWidth="2" />
-          <path d="M13 19 L17 23 L25 15" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="font-syne font-800 text-xl tracking-widest" style={{ fontWeight: 800, letterSpacing: '0.15em' }}>
-          <span style={{ color: '#1a8a3c' }}>KFH</span>
-          <span className="text-gray-400 text-xs font-400 ml-1" style={{ fontWeight: 400, letterSpacing: '0.2em' }}>TAKAFUL</span>
-        </span>
-      </div>
+      <KFHHeader />
 
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
         <div className="fade-up-1 relative mb-8">
@@ -109,17 +118,17 @@ function Landing({ onStart }) {
             <Camera className="w-10 h-10" style={{ color: '#1a8a3c' }} />
           </div>
         </div>
-        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{ fontWeight: 700 }}>
-          Pre Claim Policy<br />Inspection
+        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{ fontWeight: 700, whiteSpace: 'pre-wrap' }}>
+          {t('Pre Claim Policy Inspection')}
         </h1>
         <p className="fade-up-2 text-gray-500 text-center text-sm leading-relaxed mb-10">
-          Take photos of your vehicle from all four sides for inspection
+          {t('Take photos of your vehicle from all four sides for inspection')}
         </p>
         <div className="fade-up-2 w-full space-y-3 mb-10">
           {[
-            { icon: <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: "6 photos required: plate, chassis & 4 sides" },
-            { icon: <MapPin className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: "GPS location will be recorded" },
-            { icon: <Shield className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: "Securely submitted for assessment" },
+            { icon: <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("6 photos required: plate, chassis & 4 sides") },
+            { icon: <MapPin className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("GPS location will be recorded") },
+            { icon: <Shield className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("Securely submitted for assessment") },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 bg-green-50 rounded-xl px-4 py-3">
               <div className="mt-0.5 flex-shrink-0">{item.icon}</div>
@@ -133,7 +142,7 @@ function Landing({ onStart }) {
         <button onClick={onStart}
           className="shimmer-btn w-full text-white font-syne font-bold py-4 rounded-2xl text-base tracking-wide shadow-lg active:scale-95 transition-transform"
           style={{ fontWeight: 700 }}>
-          Start Assessment
+          {t('Start Assessment')}
         </button>
       </div>
     </div>
@@ -154,10 +163,11 @@ const DONTS_TIPS = [
 ];
 
 function TipsScreen({ onNext }) {
+  const { t, i18n } = useTranslation();
   const [page, setPage] = useState(0);
   const tips = page === 0 ? DOS_TIPS : DONTS_TIPS;
   return (
-    <div className="min-h-screen bg-white flex flex-col px-6 py-10">
+    <div className="min-h-screen bg-white flex flex-col px-6 py-10" dir={i18n.dir()}>
       <GlobalStyle />
       <div className="flex items-center justify-between mb-6 fade-up">
         <div className="flex gap-2">
@@ -166,7 +176,7 @@ function TipsScreen({ onNext }) {
               style={{ width: i === page ? 32 : 16, background: i === page ? '#1a8a3c' : '#e2e8f0' }} />
           ))}
         </div>
-        <span className="text-xs text-gray-400 font-medium">{page === 0 ? "Do's" : "Don'ts"}</span>
+        <span className="text-xs text-gray-400 font-medium">{page === 0 ? t("Photo Tips – Do's").split('–')[1] : t("Photo Tips – Don'ts").split('–')[1]}</span>
       </div>
       <div className="mb-6 fade-up">
         <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-3 ${page === 0 ? 'bg-green-50' : 'bg-red-50'}`}>
@@ -174,16 +184,16 @@ function TipsScreen({ onNext }) {
             ? <Check className="w-4 h-4" style={{ color: '#1a8a3c' }} />
             : <X className="w-4 h-4 text-red-500" />}
           <span className={`text-sm font-semibold ${page === 0 ? 'kfh-green' : 'text-red-500'}`}>
-            Photo Tips – {page === 0 ? "Do's" : "Don'ts"}
+            {page === 0 ? t("Photo Tips – Do's") : t("Photo Tips – Don'ts")}
           </span>
         </div>
-        <p className="text-gray-500 text-sm">Follow these guidelines for the best results.</p>
+        <p className="text-gray-500 text-sm">{t("Follow these guidelines for the best results.")}</p>
       </div>
       <div className="flex-1 space-y-4 fade-up-1">
         {tips.map((tip, i) => (
           <div key={i} className="flex items-center gap-4 bg-gray-50 rounded-2xl p-3">
             <img src={tip.img} alt="" className="w-20 h-14 object-cover rounded-xl flex-shrink-0" />
-            <p className="text-sm text-gray-700 font-medium leading-snug">{tip.text}</p>
+            <p className="text-sm text-gray-700 font-medium leading-snug">{t(tip.text)}</p>
           </div>
         ))}
       </div>
@@ -192,13 +202,13 @@ function TipsScreen({ onNext }) {
           <button onClick={() => setPage(1)}
             className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform"
             style={{ fontWeight: 700 }}>
-            Next
+            {t("Next")}
           </button>
         ) : (
           <button onClick={onNext}
-            className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform"
+            className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform flex items-center justify-center"
             style={{ fontWeight: 700 }}>
-            Got It — Continue <ChevronRight className="inline w-4 h-4 ml-1" />
+            {t("Got It — Continue")} <ChevronRight className="w-4 h-4 ml-1 mx-1" />
           </button>
         )}
       </div>
@@ -208,8 +218,9 @@ function TipsScreen({ onNext }) {
 
 // ─── SCREEN 3 : AUTO-ROTATION ────────────────────────────────────────────────
 function AutoRotationScreen({ onNext }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14" dir={i18n.dir()}>
       <GlobalStyle />
       <div />
       <div className="flex flex-col items-center text-center fade-up">
@@ -220,20 +231,20 @@ function AutoRotationScreen({ onNext }) {
             <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1a8a3c" strokeWidth="2" />
           </svg>
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Turn Off Auto-Rotation</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>{t("Turn Off Auto-Rotation")}</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
-          Before we begin, please turn off your phone's auto-rotation feature.
+          {t("Before we begin, please turn off your phone's auto-rotation feature.")}
         </p>
         <div className="w-full bg-green-50 border border-green-100 rounded-2xl px-5 py-4">
           <p className="text-sm text-gray-600 text-center leading-relaxed">
-            This ensures the camera stays in the correct orientation while you take photos.
+            {t("This ensures the camera stays in the correct orientation while you take photos.")}
           </p>
         </div>
       </div>
       <button onClick={onNext}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform"
         style={{ fontWeight: 700 }}>
-        Next
+        {t("Next")}
       </button>
     </div>
   );
@@ -241,6 +252,7 @@ function AutoRotationScreen({ onNext }) {
 
 // ─── SCREEN 4 : PERMISSIONS ───────────────────────────────────────────────────
 function PermissionsScreen({ onGranted }) {
+  const { t, i18n } = useTranslation();
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -260,7 +272,7 @@ function PermissionsScreen({ onGranted }) {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14" dir={i18n.dir()}>
       <GlobalStyle />
       <div />
       <div className="flex flex-col items-center text-center fade-up w-full max-w-sm">
@@ -271,29 +283,29 @@ function PermissionsScreen({ onGranted }) {
           ].map(p => (
             <div key={p.label} className="flex-1 bg-green-50 rounded-2xl py-6 flex flex-col items-center gap-2">
               {p.icon}
-              <span className="text-xs font-semibold text-gray-700">{p.label}</span>
+              <span className="text-xs font-semibold text-gray-700">{t(p.label)}</span>
             </div>
           ))}
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Allow Access</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>{t("Allow Access")}</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6">
-          We need camera and GPS permissions to capture and geo-tag your vehicle photos.
+          {t("We need camera and GPS permissions to capture and geo-tag your vehicle photos.")}
         </p>
         {status === "error" && (
-          <div className="w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-sm text-red-600 text-left">
-            <AlertCircle className="inline w-4 h-4 mr-1 mb-0.5" />{errorMsg}
+          <div className="w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-sm text-red-600 text-left flex gap-2">
+            <AlertCircle className="shrink-0 w-4 h-4 mt-0.5" /><span>{t(errorMsg)}</span>
           </div>
         )}
         {status === "requesting" && (
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-            <Loader2 className="w-4 h-4 animate-spin" /> Requesting permissions…
+            <Loader2 className="w-4 h-4 animate-spin" /> {t("Requesting permissions…")}
           </div>
         )}
       </div>
       <button onClick={request} disabled={status === "requesting"}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform disabled:opacity-60"
         style={{ fontWeight: 700 }}>
-        Grant Permissions
+        {t("Grant Permissions")}
       </button>
     </div>
   );
@@ -301,6 +313,7 @@ function PermissionsScreen({ onGranted }) {
 
 // ─── SCREEN 5 : CAMERA CAPTURE ───────────────────────────────────────────────
 function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
+  const { t, i18n } = useTranslation();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
@@ -349,7 +362,7 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
   const orientationOk = !needsLandscape || isLandscape;
 
   return (
-    <div className="h-screen bg-black flex flex-col relative overflow-hidden">
+    <div className="h-screen bg-black flex flex-col relative overflow-hidden" dir={i18n.dir()}>
       <GlobalStyle />
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
@@ -360,7 +373,7 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
           <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4 text-white" />
           </button>
-          <span className="text-white font-syne font-bold text-base flex-1" style={{ fontWeight: 700 }}>{step.label}</span>
+          <span className="text-white font-syne font-bold text-base flex-1" style={{ fontWeight: 700 }}>{t(step.label)}</span>
           <span className="text-white/60 text-xs">{stepIndex + 1} / {totalSteps}</span>
         </div>
         <div className="flex gap-1.5 justify-center mt-2">
@@ -377,8 +390,8 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
           <div className="w-16 h-16 rounded-2xl bg-yellow-500/20 flex items-center justify-center mb-5">
             <RotateCcw className="w-8 h-8 text-yellow-400" />
           </div>
-          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>Rotate to Landscape</h3>
-          <p className="text-white/60 text-sm">For this photo, hold your phone horizontally</p>
+          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>{t("Rotate to Landscape")}</h3>
+          <p className="text-white/60 text-sm">{t("For this photo, hold your phone horizontally")}</p>
         </div>
       )}
 
@@ -405,12 +418,12 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
 
       {/* Bottom */}
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent px-5 pt-8 pb-8">
-        <p className="text-white/70 text-xs text-center mb-4">{step.instruction}</p>
+        <p className="text-white/70 text-xs text-center mb-4">{t(step.instruction)}</p>
         <button onClick={capture} disabled={!streamReady || !orientationOk}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-sm flex items-center justify-center gap-2 kfh-bg disabled:opacity-40 active:scale-95 transition-transform"
           style={{ fontWeight: 700 }}>
           <Camera className="w-4 h-4" />
-          Capture {step.label} ({stepIndex + 1}/{totalSteps})
+          {t("Capture")} {t(step.label)} ({stepIndex + 1}/{totalSteps})
         </button>
       </div>
     </div>
@@ -419,29 +432,30 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
 
 // ─── SCREEN 6 : REVIEW & SUBMIT ──────────────────────────────────────────────
 function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitting }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
+    <div className="min-h-screen bg-gray-50 pb-10" dir={i18n.dir()}>
       <GlobalStyle />
       <div className="bg-white px-6 pt-10 pb-6 text-center shadow-sm">
         <div className="w-14 h-14 rounded-full kfh-bg flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="w-7 h-7 text-white" />
         </div>
-        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{ fontWeight: 700 }}>Review Your Photos</h2>
-        <p className="text-gray-500 text-sm">Make sure all vehicle sides are clearly visible</p>
+        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{ fontWeight: 700 }}>{t("Review Your Photos")}</h2>
+        <p className="text-gray-500 text-sm">{t("Make sure all vehicle sides are clearly visible")}</p>
       </div>
 
       <div className="px-5 mt-5 space-y-4">
         {photos.map((photo, i) => (
           <div key={photo.sideId} className="bg-white rounded-2xl overflow-hidden shadow-sm">
             <div className="flex items-center justify-between px-4 py-3">
-              <span className="font-semibold text-gray-800 text-sm">{photo.label}</span>
+              <span className="font-semibold text-gray-800 text-sm">{t(photo.label)}</span>
               <button onClick={() => onRetakeSingle(i)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white kfh-bg active:scale-95 transition-transform">
-                <RotateCcw className="w-3 h-3" /> Retake
+                <RotateCcw className="w-3 h-3" /> {t("Retake")}
               </button>
             </div>
             <div className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black">
-              <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+              <img src={photo.dataUrl} alt={t(photo.label)} className="w-full h-full object-contain" />
             </div>
           </div>
         ))}
@@ -451,12 +465,12 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
         <button onClick={onSubmit} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base kfh-bg active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
           style={{ fontWeight: 700 }}>
-          {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting…</> : 'Submit Assessment'}
+          {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin mx-1" /> {t("Submitting…")}</> : t('Submit Assessment')}
         </button>
         <button onClick={onRetakeAll} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-gray-700 font-syne font-semibold text-base bg-white border border-gray-200 active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
           style={{ fontWeight: 600 }}>
-          <RotateCcw className="w-4 h-4" /> Retake All Photos
+          <RotateCcw className="w-4 h-4 mx-1" /> {t("Retake All Photos")}
         </button>
       </div>
     </div>
@@ -465,18 +479,19 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
 
 // ─── SCREEN 7 : ASSESSMENT RESULTS ────────────────────────────────────────────
 function AssessmentResults({ reqId }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5" dir={i18n.dir()}>
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm p-8 text-center">
 
         <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6">
           <CheckCircle className="w-8 h-8 text-green-600" />
         </div>
 
-        <p className="text-xs font-semibold text-green-600 uppercase tracking-widest mb-1">Complete</p>
-        <h2 className="font-syne text-xl font-bold text-gray-900 mb-2">Assessment submitted</h2>
+        <p className="text-xs font-semibold text-green-600 uppercase tracking-widest mb-1">{t("Complete")}</p>
+        <h2 className="font-syne text-xl font-bold text-gray-900 mb-2">{t("Assessment submitted")}</h2>
         <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-          Your vehicle inspection has been received and is under review.
+          {t("Your vehicle inspection has been received and is under review.")}
         </p>
 
         {/* <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
@@ -485,7 +500,7 @@ function AssessmentResults({ reqId }) {
         </div> */}
 
         <button className="w-full py-3 rounded-xl kfh-bg text-white text-sm font-semibold">
-          Done
+          {t("Done")}
         </button>
 
       </div>
@@ -495,6 +510,7 @@ function AssessmentResults({ reqId }) {
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App() {
+  const { t, i18n } = useTranslation();
   const { user_id, unique_id } = useParams();
   const [authState, setAuthState] = useState("loading");
   const [screen, setScreen] = useState("landing");
@@ -638,31 +654,31 @@ export default function App() {
 
   // ── Auth gates ────────────────────────────────────────────────────────────────
   if (authState === "loading") return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
+    <div className="min-h-screen flex items-center justify-center bg-white" dir={i18n.dir()}>
       <GlobalStyle />
       <div className="text-center">
         <div className="mx-auto mb-4 w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-gray-600 font-medium">Authenticating link…</p>
+        <p className="text-sm text-gray-600 font-medium">{t("Authenticating link…")}</p>
       </div>
     </div>
   );
 
   if (authState === "expired") return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-6 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-white px-6 text-center" dir={i18n.dir()}>
       <GlobalStyle />
       <div>
-        <h1 className="font-syne text-2xl font-bold text-gray-900 mb-3">Link Expired</h1>
-        <p className="text-sm text-gray-600 max-w-sm">This inspection link has expired. Please contact the administrator to request a new link.</p>
+        <h1 className="font-syne text-2xl font-bold text-gray-900 mb-3">{t("Link Expired")}</h1>
+        <p className="text-sm text-gray-600 max-w-sm">{t("This inspection link has expired. Please contact the administrator to request a new link.")}</p>
       </div>
     </div>
   );
 
   if (authState === "failed") return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-6 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-white px-6 text-center" dir={i18n.dir()}>
       <GlobalStyle />
       <div>
-        <h1 className="font-syne text-2xl font-bold text-gray-900 mb-3">Authentication Failed</h1>
-        <p className="text-sm text-gray-600 max-w-sm">We could not verify this inspection link. Please check the link or contact the administrator.</p>
+        <h1 className="font-syne text-2xl font-bold text-gray-900 mb-3">{t("Authentication Failed")}</h1>
+        <p className="text-sm text-gray-600 max-w-sm">{t("We could not verify this inspection link. Please check the link or contact the administrator.")}</p>
       </div>
     </div>
   );

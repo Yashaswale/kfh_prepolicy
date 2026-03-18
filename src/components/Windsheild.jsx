@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2, Trash2, Wind } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { uploadWindshieldImages, startWindshieldAssessment, uploadInspectionOcr } from "../api";
 
 // ─── STEPS ────────────────────────────────────────────────────────────────────
@@ -41,19 +42,21 @@ const GlobalStyle = () => (
   `}</style>
 );
 
-// ─── KFH LOGO ─────────────────────────────────────────────────────────────────
-const KFHLogo = () => (
-  <div className="fade-up flex items-center gap-2 mt-4">
-    <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
-      <path d="M19 3 L33 10.5 L33 27.5 L19 35 L5 27.5 L5 10.5 Z" fill="none" stroke="#1a8a3c" strokeWidth="2" />
-      <path d="M13 19 L17 23 L25 15" stroke="#1a8a3c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-    <span className="font-syne text-xl tracking-widest" style={{ fontWeight: 800, letterSpacing: '0.15em' }}>
-      <span style={{ color: '#1a8a3c' }}>KFH</span>
-      <span className="text-gray-400 text-xs ml-1" style={{ fontWeight: 400, letterSpacing: '0.2em' }}>TAKAFUL</span>
-    </span>
-  </div>
-);
+// ─── KFH LOGO + LANG TOGGLE ──────────────────────────────────────────────────
+const KFHHeader = () => {
+  const { i18n } = useTranslation();
+  return (
+    <div className="fade-up w-full flex items-center justify-between mb-8">
+      <img src="/KFH_logo.png" alt="KFH Takaful" className="h-10 object-contain" />
+      <button 
+        onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'ar' : 'en')}
+        className="px-3 py-1.5 bg-gray-100 text-[#1a8a3c] hover:bg-green-50 font-bold rounded-lg text-sm transition-colors"
+      >
+        {i18n.language === 'en' ? 'العربية' : 'English'}
+      </button>
+    </div>
+  );
+};
 
 // ─── WINDSHIELD SVG ICON ──────────────────────────────────────────────────────
 const WindshieldIcon = ({ size = 48, color = "#1e6fa8", crack = false }) => (
@@ -96,10 +99,11 @@ const StepPill = ({ step, index, current }) => {
 
 // ─── SCREEN 1: LANDING ───────────────────────────────────────────────────────
 function Landing({ onStart }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-12">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-12" dir={i18n.dir()}>
       <GlobalStyle />
-      <KFHLogo />
+      <KFHHeader />
 
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
         {/* Icon */}
@@ -114,14 +118,14 @@ function Landing({ onStart }) {
         <div className="fade-up-1 inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-4"
           style={{ background: '#eef5fb', border: '1px solid #b3d4ed' }}>
           <Wind className="w-3.5 h-3.5 ws-blue" />
-          <span className="text-xs font-semibold ws-blue uppercase tracking-wide">Windshield Claim</span>
+          <span className="text-xs font-semibold ws-blue uppercase tracking-wide">{t("Windshield Claim")}</span>
         </div>
 
-        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{ fontWeight: 700 }}>
-          Windshield Damage<br />Inspection
+        <h1 className="fade-up-1 font-syne text-2xl font-bold text-gray-900 text-center mb-3" style={{ fontWeight: 700, whiteSpace: 'pre-wrap' }}>
+          {t("Windshield Damage Inspection")}
         </h1>
         <p className="fade-up-2 text-gray-500 text-center text-sm leading-relaxed mb-10">
-          Capture your vehicle details and windshield damage photos to process your claim quickly
+          {t("Capture your vehicle details and windshield damage photos to process your claim quickly")}
         </p>
 
         <div className="fade-up-2 w-full space-y-3 mb-10">
@@ -134,7 +138,7 @@ function Landing({ onStart }) {
             <div key={i} className="flex items-start gap-3 rounded-xl px-4 py-3"
               style={{ background: '#eef5fb' }}>
               <div className="mt-0.5 flex-shrink-0">{item.icon}</div>
-              <span className="text-sm text-gray-600">{item.text}</span>
+              <span className="text-sm text-gray-600">{t(item.text)}</span>
             </div>
           ))}
         </div>
@@ -144,7 +148,7 @@ function Landing({ onStart }) {
         <button onClick={onStart}
           className="shimmer-ws w-full text-white font-syne font-bold py-4 rounded-2xl text-base tracking-wide shadow-lg active:scale-95 transition-transform"
           style={{ fontWeight: 700 }}>
-          Start Assessment
+          {t("Start Assessment")}
         </button>
       </div>
     </div>
@@ -165,11 +169,12 @@ const DONTS_TIPS = [
 ];
 
 function TipsScreen({ onNext }) {
+  const { t, i18n } = useTranslation();
   const [page, setPage] = useState(0);
   const tips = page === 0 ? DOS_TIPS : DONTS_TIPS;
 
   return (
-    <div className="min-h-screen bg-white flex flex-col px-6 py-10">
+    <div className="min-h-screen bg-white flex flex-col px-6 py-10" dir={i18n.dir()}>
       <GlobalStyle />
       <div className="flex items-center justify-between mb-6 fade-up">
         <div className="flex gap-2">
@@ -178,7 +183,7 @@ function TipsScreen({ onNext }) {
               style={{ width: i === page ? 32 : 16, background: i === page ? '#1e6fa8' : '#e2e8f0' }} />
           ))}
         </div>
-        <span className="text-xs text-gray-400 font-medium">{page === 0 ? "Do's" : "Don'ts"}</span>
+        <span className="text-xs text-gray-400 font-medium">{page === 0 ? t("Photo Tips – Do's").split('–')[1] : t("Photo Tips – Don'ts").split('–')[1]}</span>
       </div>
 
       <div className="mb-6 fade-up">
@@ -187,17 +192,17 @@ function TipsScreen({ onNext }) {
             ? <Check className="w-4 h-4 ws-blue" />
             : <X className="w-4 h-4 text-red-500" />}
           <span className={`text-sm font-semibold ${page === 0 ? 'ws-blue' : 'text-red-500'}`}>
-            Photo Tips – {page === 0 ? "Do's" : "Don'ts"}
+            {page === 0 ? t("Photo Tips – Do's") : t("Photo Tips – Don'ts")}
           </span>
         </div>
-        <p className="text-gray-500 text-sm">Follow these guidelines for the best claim results.</p>
+        <p className="text-gray-500 text-sm">{t("Follow these guidelines for the best claim results.")}</p>
       </div>
 
       <div className="flex-1 space-y-4 fade-up-1">
         {tips.map((tip, i) => (
           <div key={i} className="flex items-center gap-4 bg-gray-50 rounded-2xl p-3">
             <img src={tip.img} alt="" className="w-20 h-14 object-cover rounded-xl flex-shrink-0" />
-            <p className="text-sm text-gray-700 font-medium leading-snug">{tip.text}</p>
+            <p className="text-sm text-gray-700 font-medium leading-snug">{t(tip.text)}</p>
           </div>
         ))}
       </div>
@@ -207,13 +212,13 @@ function TipsScreen({ onNext }) {
           <button onClick={() => setPage(1)}
             className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform"
             style={{ fontWeight: 700 }}>
-            Next
+            {t("Next")}
           </button>
         ) : (
           <button onClick={onNext}
-            className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform"
+            className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform flex items-center justify-center"
             style={{ fontWeight: 700 }}>
-            Got It — Continue <ChevronRight className="inline w-4 h-4 ml-1" />
+            {t("Got It — Continue")} <ChevronRight className="w-4 h-4 mx-1" />
           </button>
         )}
       </div>
@@ -223,8 +228,9 @@ function TipsScreen({ onNext }) {
 
 // ─── SCREEN 3: AUTO-ROTATION ──────────────────────────────────────────────────
 function AutoRotationScreen({ onNext }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14" dir={i18n.dir()}>
       <GlobalStyle />
       <div />
       <div className="flex flex-col items-center text-center fade-up">
@@ -235,20 +241,20 @@ function AutoRotationScreen({ onNext }) {
             <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1e6fa8" strokeWidth="2" />
           </svg>
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Turn Off Auto-Rotation</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>{t("Turn Off Auto-Rotation")}</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
-          Before we begin, please turn off your phone's auto-rotation feature.
+          {t("Before we begin, please turn off your phone's auto-rotation feature.")}
         </p>
         <div className="w-full rounded-2xl px-5 py-4" style={{ background: '#eef5fb', border: '1px solid #b3d4ed' }}>
           <p className="text-sm text-gray-600 text-center leading-relaxed">
-            This ensures the camera stays in the correct orientation while you take photos.
+            {t("This ensures the camera stays in the correct orientation while you take photos.")}
           </p>
         </div>
       </div>
       <button onClick={onNext}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform"
         style={{ fontWeight: 700 }}>
-        Next
+        {t("Next")}
       </button>
     </div>
   );
@@ -256,6 +262,7 @@ function AutoRotationScreen({ onNext }) {
 
 // ─── SCREEN 4: PERMISSIONS ────────────────────────────────────────────────────
 function PermissionsScreen({ onGranted }) {
+  const { t, i18n } = useTranslation();
   const [status, setStatus] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -275,7 +282,7 @@ function PermissionsScreen({ onGranted }) {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-between px-7 py-14" dir={i18n.dir()}>
       <GlobalStyle />
       <div />
       <div className="flex flex-col items-center text-center fade-up w-full max-w-sm">
@@ -287,29 +294,29 @@ function PermissionsScreen({ onGranted }) {
             <div key={p.label} className="flex-1 rounded-2xl py-6 flex flex-col items-center gap-2"
               style={{ background: '#eef5fb' }}>
               {p.icon}
-              <span className="text-xs font-semibold text-gray-700">{p.label}</span>
+              <span className="text-xs font-semibold text-gray-700">{t(p.label)}</span>
             </div>
           ))}
         </div>
-        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>Allow Access</h2>
+        <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>{t("Allow Access")}</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6">
-          We need camera and GPS permissions to capture and geo-tag your windshield photos.
+          {t("We need camera and GPS permissions to capture and geo-tag your windshield photos.")}
         </p>
         {status === "error" && (
           <div className="w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4 text-sm text-red-600 text-left">
-            <AlertCircle className="inline w-4 h-4 mr-1 mb-0.5" />{errorMsg}
+            <AlertCircle className="inline w-4 h-4 mr-1 mb-0.5" />{t(errorMsg)}
           </div>
         )}
         {status === "requesting" && (
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
-            <Loader2 className="w-4 h-4 animate-spin" /> Requesting permissions…
+            <Loader2 className="w-4 h-4 animate-spin" /> {t("Requesting permissions…")}
           </div>
         )}
       </div>
       <button onClick={request} disabled={status === "requesting"}
         className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform disabled:opacity-60"
         style={{ fontWeight: 700 }}>
-        Grant Permissions
+        {t("Grant Permissions")}
       </button>
     </div>
   );
@@ -317,6 +324,7 @@ function PermissionsScreen({ onGranted }) {
 
 // ─── SCREEN 5: CAMERA CAPTURE ────────────────────────────────────────────────
 function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRotation, setHasAcknowledgedRotation }) {
+  const { t, i18n } = useTranslation();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
@@ -378,7 +386,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
   const orientationOk = isLandscape || hasAcknowledgedRotation;
 
   return (
-    <div className="h-screen bg-black flex flex-col relative overflow-hidden">
+    <div className="h-screen bg-black flex flex-col relative overflow-hidden" dir={i18n.dir()}>
       <GlobalStyle />
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
@@ -389,7 +397,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
           <button onClick={onBack} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
             <ArrowLeft className="w-4 h-4 text-white" />
           </button>
-          <span className="text-white font-syne font-bold text-base flex-1" style={{ fontWeight: 700 }}>{step.label}</span>
+          <span className="text-white font-syne font-bold text-base flex-1" style={{ fontWeight: 700 }}>{t(step.label)}</span>
           <span className="text-white/50 text-xs">{stepIndex + 1}/{STEPS.length}</span>
         </div>
 
@@ -408,12 +416,12 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
             style={{ background: 'rgba(30,111,168,0.2)' }}>
             <RotateCcw className="w-8 h-8" style={{ color: '#7ec8f0' }} />
           </div>
-          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>Rotate to Landscape</h3>
-          <p className="text-white/60 text-sm mb-6">Hold your phone horizontally to capture the photo</p>
+          <h3 className="font-syne text-white text-xl font-bold mb-2" style={{ fontWeight: 700 }}>{t("Rotate to Landscape")}</h3>
+          <p className="text-white/60 text-sm mb-6">{t("Hold your phone horizontally to capture the photo")}</p>
           <button onClick={() => setHasAcknowledgedRotation(true)}
             className="px-8 py-3 rounded-2xl text-white font-syne font-bold text-base active:scale-95 transition-transform"
             style={{ fontWeight: 700, background: '#1e6fa8' }}>
-            Got It
+            {t("Got It")}
           </button>
         </div>
       )}
@@ -463,7 +471,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
               {/* Plate tag reminder */}
               <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/10 rounded-lg px-2 py-1 backdrop-blur-sm">
                 <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                <span className="text-white text-xs">Plate must be visible</span>
+                <span className="text-white text-xs">{t("Plate must be visible")}</span>
               </div>
             </div>
           ) : (
@@ -491,18 +499,18 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
       {isCloseup && orientationOk && (
         <div className="absolute top-1/4 left-4 right-4 z-10 flex items-center gap-2 bg-blue-900/60 backdrop-blur-sm rounded-xl px-3 py-2">
           <WindshieldIcon size={18} color="#7ec8f0" crack={true} />
-          <span className="text-blue-100 text-xs">Move in close — fill frame with the crack or chip</span>
+          <span className="text-blue-100 text-xs">{t("Move in close — fill frame with the crack or chip")}</span>
         </div>
       )}
 
       {/* Bottom */}
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent px-5 pt-8 pb-8">
-        <p className="text-white/70 text-xs text-center mb-4">{step.instruction}</p>
+        <p className="text-white/70 text-xs text-center mb-4">{t(step.instruction)}</p>
         <button onClick={capture} disabled={!streamReady || !orientationOk}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 transition-transform ws-blue-bg"
           style={{ fontWeight: 700 }}>
           <Camera className="w-4 h-4" />
-          Capture {step.label} ({stepIndex + 1}/{STEPS.length})
+          {t("Capture")} {t(step.label)} ({stepIndex + 1}/{STEPS.length})
         </button>
       </div>
     </div>
@@ -511,6 +519,7 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
 
 // ─── SCREEN 6: REVIEW & SUBMIT ────────────────────────────────────────────────
 function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitting }) {
+  const { t, i18n } = useTranslation();
   // Separate windshield steps for visual grouping
   const docPhotos = photos.filter(p => p.sideId === "license_plate" || p.sideId === "chassis_no");
   const wsPhotos = photos.filter(p => p.sideId === "windshield_plate" || p.sideId === "windshield_damage");
@@ -519,14 +528,14 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
       <div className="flex items-center justify-between px-4 py-3">
         <div>
-          <span className="font-semibold text-gray-800 text-sm block">{photo.label}</span>
+          <span className="font-semibold text-gray-800 text-sm block">{t(photo.label)}</span>
           {(photo.sideId === "windshield_plate" || photo.sideId === "windshield_damage") && (
-            <span className="text-xs" style={{ color: '#1e6fa8' }}>Windshield</span>
+            <span className="text-xs" style={{ color: '#1e6fa8' }}>{t("Windshield")}</span>
           )}
         </div>
         <button onClick={() => onRetakeSingle(index)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white ws-blue-bg active:scale-95 transition-transform">
-          <RotateCcw className="w-3 h-3" /> Retake
+          <RotateCcw className="w-3 h-3" /> {t("Retake")}
         </button>
       </div>
       <div className="mx-4 mb-4 rounded-xl overflow-hidden aspect-video bg-black"
@@ -537,27 +546,27 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-10">
+    <div className="min-h-screen bg-gray-50 pb-10" dir={i18n.dir()}>
       <GlobalStyle />
 
       <div className="bg-white px-6 pt-10 pb-6 text-center shadow-sm">
         <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ws-blue-bg">
           <CheckCircle className="w-7 h-7 text-white" />
         </div>
-        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{ fontWeight: 700 }}>Review Your Photos</h2>
-        <p className="text-gray-500 text-sm">Ensure all photos are clear before submitting</p>
+        <h2 className="font-syne text-xl font-bold text-gray-900 mb-1" style={{ fontWeight: 700 }}>{t("Review Your Photos")}</h2>
+        <p className="text-gray-500 text-sm">{t("Ensure all photos are clear before submitting")}</p>
       </div>
 
       <div className="px-5 mt-5 space-y-4">
         {/* Vehicle Documents */}
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Vehicle Documents</p>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{t("Vehicle Documents")}</p>
         {docPhotos.map((photo) => (
           <PhotoCard key={photo.sideId} photo={photo} index={photos.findIndex(p => p.sideId === photo.sideId)} />
         ))}
 
         {/* Windshield Photos */}
         <div className="flex items-center gap-2 mt-2">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Windshield Photos</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">{t("Windshield Photos")}</p>
           <WindshieldIcon size={14} color="#1e6fa8" crack={true} />
         </div>
         {wsPhotos.map((photo) => (
@@ -569,12 +578,12 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
         <button onClick={onSubmit} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-white font-syne font-bold text-base ws-blue-bg active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
           style={{ fontWeight: 700 }}>
-          {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting…</> : 'Submit Claim'}
+          {isSubmitting ? <><Loader2 className="w-5 h-5 animate-spin mx-1" /> {t("Submitting…")}</> : t('Submit Claim')}
         </button>
         <button onClick={onRetakeAll} disabled={isSubmitting}
           className="w-full py-4 rounded-2xl text-gray-700 font-syne font-semibold text-base bg-white border border-gray-200 active:scale-95 transition-transform disabled:opacity-50 flex items-center justify-center gap-2"
           style={{ fontWeight: 600 }}>
-          <RotateCcw className="w-4 h-4" /> Retake All Photos
+          <RotateCcw className="w-4 h-4 mx-1" /> {t("Retake All Photos")}
         </button>
       </div>
     </div>
@@ -583,15 +592,16 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
 
 // ─── SCREEN 7: SUCCESS ────────────────────────────────────────────────────────
 function SuccessScreen({ reqId }) {
+  const { t, i18n } = useTranslation();
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center" dir={i18n.dir()}>
       <GlobalStyle />
       <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6 fade-up ws-blue-bg">
         <Check className="w-10 h-10 text-white" />
       </div>
-      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>Submission Successful</h2>
+      <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3 fade-up-1" style={{ fontWeight: 700 }}>{t("Submission Successful")}</h2>
       <p className="text-gray-500 text-sm leading-relaxed mb-8 fade-up-1">
-        Your claim has been submitted successfully. Our team will review and contact you shortly.
+        {t("Your claim has been submitted successfully. Our team will review and contact you shortly.")}
       </p>
     </div>
   );
