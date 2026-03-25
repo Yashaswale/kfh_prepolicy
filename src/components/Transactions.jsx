@@ -87,8 +87,10 @@ function DamageBadge({ level }) {
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [chartView, setChartView] = useState("Days");
-  const [month, setMonth] = useState("February");
-  const [year, setYear] = useState("2026");
+  const MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const now = new Date();
+  const [month, setMonth] = useState(MONTH_ABBRS[now.getMonth()]);
+  const [year, setYear] = useState(String(now.getFullYear()));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
@@ -281,11 +283,11 @@ export default function Dashboard() {
               onChange={(e) => setMonth(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
             >
-              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m) => (
+              {MONTH_ABBRS.map((m) => (
                 <option key={m}>{m}</option>
               ))}
             </select>
-            
+
             <span className="text-sm font-medium text-gray-600 ml-2">Year</span>
             <select
               value={year}
