@@ -21,8 +21,8 @@ const SendLinkModal = ({ onClose }) => {
     setError("");
     setSuccess("");
 
-    if (!form.name || !form.email || !form.phone) {
-      setError("Please fill in all required fields (Name, Email, Phone).");
+    if (!form.name || !form.phone) {
+      setError("Please fill in all required fields (Name, Phone).");
       return;
     }
 
@@ -30,7 +30,7 @@ const SendLinkModal = ({ onClose }) => {
       type,
       customer_name: form.name,
       phone_number: form.phone,
-      email: form.email,
+      email: form.email || null,
       policy_number: form.policy,
       claim_number: form.claim,
     };
@@ -160,7 +160,7 @@ const SendLinkModal = ({ onClose }) => {
               label: "Customer Email Address",
               placeholder: "Enter email",
               type: "email",
-              required: true,
+              required: false,
             },
             {
               id: "phone",
