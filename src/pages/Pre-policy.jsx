@@ -231,7 +231,6 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
                     </button>
                 </div>
             </div>
-            <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
         </div>
     );
 }
@@ -503,7 +502,6 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
     return (
         <div className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
         @media print {
           .no-print { display: none !important; }
           body { background: white; }

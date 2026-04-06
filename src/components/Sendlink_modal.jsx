@@ -116,10 +116,10 @@ const SendLinkModal = ({ onClose }) => {
               Type <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-nowrap gap-3">
-              {types.map((t) => (
+              {types.map((opt) => (
                 <label
-                  key={t.id}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all text-sm font-medium select-none ${type === t.id
+                  key={opt.id}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all text-sm font-medium select-none ${type === opt.id
                       ? "border-gray-900 bg-gray-900 text-white shadow-sm"
                       : "border-gray-200 text-gray-600 hover:border-gray-400"
                     }`}
@@ -127,20 +127,20 @@ const SendLinkModal = ({ onClose }) => {
                   <input
                     type="radio"
                     name="type"
-                    value={t.id}
-                    checked={type === t.id}
-                    onChange={() => setType(t.id)}
+                    value={opt.id}
+                    checked={type === opt.id}
+                    onChange={() => setType(opt.id)}
                     className="sr-only"
                   />
                   <span
-                    className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${type === t.id ? "border-white" : "border-gray-400"
+                    className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${type === opt.id ? "border-white" : "border-gray-400"
                       }`}
                   >
-                    {type === t.id && (
+                    {type === opt.id && (
                       <span className="w-1.5 h-1.5 rounded-full bg-white block" />
                     )}
                   </span>
-                  {t.label}
+                  {opt.label}
                 </label>
               ))}
             </div>
@@ -233,9 +233,6 @@ const SendLinkModal = ({ onClose }) => {
         </div>
       </div>
 
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-      `}</style>
     </div>
   );
 };

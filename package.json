@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/dm-sans": "^5.2.8",
+    "@fontsource/syne": "^5.2.7",
     "@tailwindcss/vite": "^4.1.18",
     "browser-image-compression": "^2.0.2",
     "i18next": "^25.8.18",

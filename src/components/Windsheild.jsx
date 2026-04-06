@@ -3,6 +3,12 @@ import { useParams } from "react-router-dom";
 import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2, Trash2, Wind } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { uploadWindshieldImages, startWindshieldAssessment, uploadInspectionOcr } from "../api";
+import {
+  acquireCameraStream,
+  stopMediaStream,
+  requestGeolocationOnce,
+  cameraErrorToTranslationKey,
+} from "../utils/cameraStream";
 
 // ─── STEPS ────────────────────────────────────────────────────────────────────
 const STEPS = [
@@ -15,7 +21,6 @@ const STEPS = [
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const GlobalStyle = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'DM Sans', sans-serif; background: #f8faf8; overflow-x: hidden; }
     .font-syne { font-family: 'Syne', sans-serif; }
@@ -268,16 +273,16 @@ function PermissionsScreen({ onGranted }) {
 
   const request = async () => {
     setStatus("requesting");
+    setErrorMsg("");
     try {
-      await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(() => onGranted(), () => onGranted(), { timeout: 5000 });
-      } else {
-        onGranted();
-      }
-    } catch {
+      const stream = await acquireCameraStream();
+      stopMediaStream(stream);
+      await requestGeolocationOnce();
+      setStatus("idle");
+      onGranted();
+    } catch (err) {
       setStatus("error");
-      setErrorMsg("Camera permission denied. Please allow camera access in your browser settings.");
+      setErrorMsg(cameraErrorToTranslationKey(err));
     }
   };
 
@@ -327,9 +332,12 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
   const { t, i18n } = useTranslation();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   const [streamReady, setStreamReady] = useState(false);
   const [streamObj, setStreamObj] = useState(null);
+  const [streamErrorKey, setStreamErrorKey] = useState(null);
+  const [streamRetryToken, setStreamRetryToken] = useState(0);
 
   const needsLandscape = true; // All photos require landscape mode
   const isCloseup = step.id === "windshield_damage";
@@ -341,20 +349,47 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
   }, []);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync reset before async camera open */
     let active = true;
-    let currentStream = null;
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
-      if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
-      currentStream = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setStreamObj(stream);
-      setStreamReady(true);
-    });
+    setStreamReady(false);
+    setStreamErrorKey(null);
+    setStreamObj(null);
+    streamRef.current = null;
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    acquireCameraStream({
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    })
+      .then((stream) => {
+        if (!active) {
+          stopMediaStream(stream);
+          return;
+        }
+        streamRef.current = stream;
+        setStreamObj(stream);
+        setStreamReady(true);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setStreamErrorKey(cameraErrorToTranslationKey(err));
+      });
+
     return () => {
       active = false;
-      currentStream?.getTracks().forEach(t => t.stop());
+      stopMediaStream(streamRef.current);
+      streamRef.current = null;
     };
-  }, []);
+  }, [stepIndex, streamRetryToken]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    const s = streamObj;
+    if (!v || !s) return;
+    v.srcObject = s;
+    const p = v.play?.();
+    if (p && typeof p.then === "function") p.catch(() => {});
+  }, [streamObj]);
 
   const capture = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -390,6 +425,20 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
       <GlobalStyle />
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
+
+      {streamErrorKey && (
+        <div className="absolute inset-0 z-30 bg-black/90 flex flex-col items-center justify-center px-6 text-center">
+          <AlertCircle className="w-10 h-10 text-red-400 mb-3 shrink-0" />
+          <p className="text-white text-sm mb-4 leading-relaxed">{t(streamErrorKey)}</p>
+          <button
+            type="button"
+            onClick={() => setStreamRetryToken((x) => x + 1)}
+            className="w-full max-w-xs py-3 rounded-xl bg-white text-black font-syne font-bold text-sm active:scale-95 transition-transform"
+          >
+            {t("Try again")}
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent px-5 pt-5 pb-10">
@@ -591,7 +640,7 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
 }
 
 // ─── SCREEN 7: SUCCESS ────────────────────────────────────────────────────────
-function SuccessScreen({ reqId }) {
+function SuccessScreen() {
   const { t, i18n } = useTranslation();
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center" dir={i18n.dir()}>
@@ -616,8 +665,6 @@ export default function WindshieldClaim() {
   const [photos, setPhotos] = useState([]);
   const [retakeIndex, setRetakeIndex] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reqId] = useState(() => "WS-" + Date.now().toString(36).toUpperCase());
-
   const handleCapture = (dataUrl) => {
     const idx = retakeIndex !== null ? retakeIndex : captureIndex;
     const step = STEPS[idx];
@@ -771,7 +818,7 @@ export default function WindshieldClaim() {
       isSubmitting={isSubmitting}
     />
   );
-  if (screen === "success") return <SuccessScreen reqId={reqId} />;
+  if (screen === "success") return <SuccessScreen />;
 
   return null;
 }

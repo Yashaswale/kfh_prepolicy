@@ -218,7 +218,7 @@ export default function Dashboard() {
             };
           });
           setRows(mapped);
-          setSelected(new Set(mapped.map((t) => t.id)));
+          setSelected(new Set(mapped.map((row) => row.id)));
         }
       } catch {
         if (!cancelled) {
@@ -246,10 +246,10 @@ export default function Dashboard() {
   const paginated = useServerPagination ? rows : rows.slice((page - 1) * showEntries, page * showEntries);
 
   const toggleAll = () => {
-    if (paginated.every((t) => selected.has(t.id))) {
-      setSelected((s) => { const n = new Set(s); paginated.forEach((t) => n.delete(t.id)); return n; });
+    if (paginated.every((row) => selected.has(row.id))) {
+      setSelected((s) => { const n = new Set(s); paginated.forEach((row) => n.delete(row.id)); return n; });
     } else {
-      setSelected((s) => { const n = new Set(s); paginated.forEach((t) => n.add(t.id)); return n; });
+      setSelected((s) => { const n = new Set(s); paginated.forEach((row) => n.add(row.id)); return n; });
     }
   };
 
@@ -257,11 +257,10 @@ export default function Dashboard() {
     setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
 
-  const allChecked = paginated.length > 0 && paginated.every((t) => selected.has(t.id));
+  const allChecked = paginated.length > 0 && paginated.every((row) => selected.has(row.id));
 
   return (
     <div className="min-h-screen bg-gray-100 p-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');`}</style>
 
       {/* Top Section */}
       <div className="flex gap-6 mb-6">
@@ -449,26 +448,26 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {paginated.map((t, idx) => (
+              {paginated.map((row, idx) => (
                 <tr
-                  key={t.id}
+                  key={row.id}
                   className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? "" : ""}`}
                 >
                   <td className="px-4 py-3">
                     <input
                       type="checkbox"
-                      checked={selected.has(t.id)}
-                      onChange={() => toggleOne(t.id)}
+                      checked={selected.has(row.id)}
+                      onChange={() => toggleOne(row.id)}
                       className="w-4 h-4 rounded border-gray-300 accent-green-600 cursor-pointer"
                     />
                   </td>
                   <td className="px-3 py-3 text-sm text-gray-500">{baseIndex + idx + 1}</td>
-                  <td className="px-3 py-3 text-sm text-gray-800 font-medium">{t.name}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{t.email}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{t.type_display}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{t.policyNumber}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{t.date}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{t.time}</td>
+                  <td className="px-3 py-3 text-sm text-gray-800 font-medium">{row.name}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{row.email}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{row.type_display}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{row.policyNumber}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{row.date}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{row.time}</td>
                   <td className="px-3 py-3">
                     <button className="text-gray-500 hover:text-gray-800 transition-colors p-1">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">

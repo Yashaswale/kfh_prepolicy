@@ -4,6 +4,12 @@ import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCirc
 import { useTranslation } from "react-i18next";
 import { verifyInspectionLink, uploadInspectionOcr, uploadDamageImages, startAssessment, getDamageResults } from "../api";
 import VehicleSideCapture from "./VehicleSideCapture";
+import {
+  acquireCameraStream,
+  stopMediaStream,
+  requestGeolocationOnce,
+  cameraErrorToTranslationKey,
+} from "../utils/cameraStream";
 
 // ─── STEPS ───────────────────────────────────────────────────────────────────
 // Manual steps captured with the traditional camera UI
@@ -30,7 +36,6 @@ const STEPS = MANUAL_STEPS;
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const GlobalStyle = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'DM Sans', sans-serif; background: #f8faf8; overflow-x: hidden; }
     .font-syne { font-family: 'Syne', sans-serif; }
@@ -258,16 +263,16 @@ function PermissionsScreen({ onGranted }) {
 
   const request = async () => {
     setStatus("requesting");
+    setErrorMsg("");
     try {
-      await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(() => onGranted(), () => onGranted(), { timeout: 5000 });
-      } else {
-        onGranted();
-      }
-    } catch {
+      const stream = await acquireCameraStream();
+      stopMediaStream(stream);
+      await requestGeolocationOnce();
+      setStatus("idle");
+      onGranted();
+    } catch (err) {
       setStatus("error");
-      setErrorMsg("Camera permission denied. Please allow camera access in your browser settings.");
+      setErrorMsg(cameraErrorToTranslationKey(err));
     }
   };
 
@@ -319,6 +324,9 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   const [streamReady, setStreamReady] = useState(false);
   const streamRef = useRef(null);
+  const [streamObj, setStreamObj] = useState(null);
+  const [streamErrorKey, setStreamErrorKey] = useState(null);
+  const [streamRetryToken, setStreamRetryToken] = useState(0);
 
   const needsLandscape = step.aspect === "landscape";
 
@@ -330,23 +338,47 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
 
   // Acquire camera stream — re-runs for each step so the camera stays alive
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync reset before async camera open */
     let active = true;
     setStreamReady(false);
+    setStreamErrorKey(null);
+    setStreamObj(null);
+    streamRef.current = null;
+    /* eslint-enable react-hooks/set-state-in-effect */
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
-      if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setStreamReady(true);
-    }).catch(() => { /* camera permission denied — handled elsewhere */ });
+    acquireCameraStream({
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    })
+      .then((stream) => {
+        if (!active) {
+          stopMediaStream(stream);
+          return;
+        }
+        streamRef.current = stream;
+        setStreamObj(stream);
+        setStreamReady(true);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setStreamErrorKey(cameraErrorToTranslationKey(err));
+      });
 
     return () => {
       active = false;
-      // Stop the stream only when this effect cleans up (step change or unmount)
-      streamRef.current?.getTracks().forEach(t => t.stop());
+      stopMediaStream(streamRef.current);
       streamRef.current = null;
     };
-  }, [stepIndex]);
+  }, [stepIndex, streamRetryToken]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    const s = streamObj;
+    if (!v || !s) return;
+    v.srcObject = s;
+    const p = v.play?.();
+    if (p && typeof p.then === "function") p.catch(() => {});
+  }, [streamObj]);
 
   const capture = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -366,6 +398,20 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
       <GlobalStyle />
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
+
+      {streamErrorKey && (
+        <div className="absolute inset-0 z-30 bg-black/90 flex flex-col items-center justify-center px-6 text-center">
+          <AlertCircle className="w-10 h-10 text-red-400 mb-3 shrink-0" />
+          <p className="text-white text-sm mb-4 leading-relaxed">{t(streamErrorKey)}</p>
+          <button
+            type="button"
+            onClick={() => setStreamRetryToken((x) => x + 1)}
+            className="w-full max-w-xs py-3 rounded-xl bg-white text-black font-syne font-bold text-sm active:scale-95 transition-transform"
+          >
+            {t("Try again")}
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent px-5 pt-5 pb-8">
@@ -478,10 +524,40 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
 }
 
 // ─── SCREEN 7 : ASSESSMENT RESULTS ────────────────────────────────────────────
-function AssessmentResults({ reqId }) {
+function AssessmentResults({ reqId, photos, damageResults, isLoading, error }) {
   const { t, i18n } = useTranslation();
+  const photoCount = (photos || []).filter((p) => p?.dataUrl).length;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-5" dir={i18n.dir()}>
+        <GlobalStyle />
+        <Loader2 className="w-10 h-10 text-green-600 animate-spin mb-4" />
+        <p className="text-sm text-gray-600">{t("Submitting…")}</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-5" dir={i18n.dir()}>
+        <GlobalStyle />
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="font-syne text-lg font-bold text-gray-900 mb-2">{t("Something went wrong")}</h2>
+          <p className="text-sm text-gray-600 mb-6">{typeof error === "string" ? error : t("Could not open the camera. Please try again.")}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5" dir={i18n.dir()}>
+    <div
+      className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-5"
+      dir={i18n.dir()}
+      data-inspection-results={damageResults != null ? "1" : "0"}
+    >
+      <GlobalStyle />
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm p-8 text-center">
 
         <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-6">
@@ -490,16 +566,19 @@ function AssessmentResults({ reqId }) {
 
         <p className="text-xs font-semibold text-green-600 uppercase tracking-widest mb-1">{t("Complete")}</p>
         <h2 className="font-syne text-xl font-bold text-gray-900 mb-2">{t("Assessment submitted")}</h2>
-        <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+        <p className="text-sm text-gray-500 mb-2 leading-relaxed">
           {t("Your vehicle inspection has been received and is under review.")}
         </p>
+        <p className="text-xs text-gray-400 mb-6">
+          {photoCount} {t("photo")}{photoCount !== 1 ? "s" : ""} {t("total")}
+        </p>
 
-        {/* <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-6">
           <p className="text-[10px] text-gray-400 mb-0.5 uppercase tracking-wide">Request ID</p>
           <p className="font-syne font-bold text-gray-700 text-sm tracking-wider">{reqId}</p>
-        </div> */}
+        </div>
 
-        <button className="w-full py-3 rounded-xl kfh-bg text-white text-sm font-semibold">
+        <button type="button" className="w-full py-3 rounded-xl kfh-bg text-white text-sm font-semibold">
           {t("Done")}
         </button>
 
@@ -699,18 +778,41 @@ export default function App() {
       onBack={() => captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1)}
     />
   );
-  if (screen === "ws-camera") return (
-    <VehicleSideCapture
-      userId={user_id}
-      uniqueId={unique_id}
-      onAllCaptured={handleWsCaptured}
-      onBack={() => {
-        // Go back to last manual step
-        setCaptureIndex(MANUAL_STEPS.length - 1);
-        setScreen("camera");
-      }}
-    />
-  );
+  if (screen === "ws-camera") {
+    if (!user_id || !unique_id) {
+      return (
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center" dir={i18n.dir()}>
+          <GlobalStyle />
+          <AlertCircle className="w-12 h-12 text-amber-500 mb-4" />
+          <h2 className="font-syne text-xl font-bold text-gray-900 mb-2">{t("Missing link data")}</h2>
+          <p className="text-gray-600 text-sm leading-relaxed mb-8 max-w-sm">
+            {t("This step needs a valid inspection link (user id and session id). Use the link you were sent or contact support.")}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setCaptureIndex(MANUAL_STEPS.length - 1);
+              setScreen("camera");
+            }}
+            className="w-full max-w-sm py-4 rounded-2xl text-white font-syne font-bold kfh-bg"
+          >
+            {t("Go back")}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <VehicleSideCapture
+        userId={user_id}
+        uniqueId={unique_id}
+        onAllCaptured={handleWsCaptured}
+        onBack={() => {
+          setCaptureIndex(MANUAL_STEPS.length - 1);
+          setScreen("camera");
+        }}
+      />
+    );
+  }
   if (screen === "review") return (
     <ReviewSubmit
       photos={allPhotos}

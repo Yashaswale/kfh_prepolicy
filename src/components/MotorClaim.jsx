@@ -4,6 +4,12 @@ import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCirc
 import { useTranslation } from "react-i18next";
 import { uploadDamageImages, startAssessment, uploadInspectionOcr } from "../api";
 import VehicleSideCapture from "./VehicleSideCapture";
+import {
+  acquireCameraStream,
+  stopMediaStream,
+  requestGeolocationOnce,
+  cameraErrorToTranslationKey,
+} from "../utils/cameraStream";
 
 // ─── REQUIRED STEPS (license + chassis) ───────────────────────────────────────────
 const REQUIRED_STEPS = [
@@ -14,7 +20,6 @@ const REQUIRED_STEPS = [
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const GlobalStyle = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
     * { box-sizing: border-box; }
     body { margin: 0; font-family: 'DM Sans', sans-serif; background: #f8faf8; overflow-x: hidden; }
     .font-syne { font-family: 'Syne', sans-serif; }
@@ -150,6 +155,7 @@ const DONTS_TIPS = [
 ];
 
 function TipsScreen({ onNext }) {
+  const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const tips = page === 0 ? DOS_TIPS : DONTS_TIPS;
 
@@ -246,16 +252,16 @@ function PermissionsScreen({ onGranted }) {
 
   const request = async () => {
     setStatus("requesting");
+    setErrorMsg("");
     try {
-      await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(() => onGranted(), () => onGranted(), { timeout: 5000 });
-      } else {
-        onGranted();
-      }
-    } catch {
+      const stream = await acquireCameraStream();
+      stopMediaStream(stream);
+      await requestGeolocationOnce();
+      setStatus("idle");
+      onGranted();
+    } catch (err) {
       setStatus("error");
-      setErrorMsg("Camera permission denied. Please allow camera access in your browser settings.");
+      setErrorMsg(cameraErrorToTranslationKey(err));
     }
   };
 
@@ -304,9 +310,12 @@ function CameraCapture({ step, stepIndex, totalRequired, isExtra, extraLabel, on
   const { t, i18n } = useTranslation();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
   const [isLandscape, setIsLandscape] = useState(window.innerWidth > window.innerHeight);
   const [streamReady, setStreamReady] = useState(false);
   const [streamObj, setStreamObj] = useState(null);
+  const [streamErrorKey, setStreamErrorKey] = useState(null);
+  const [streamRetryToken, setStreamRetryToken] = useState(0);
 
   const needsLandscape = !isExtra && step?.aspect === "landscape";
   const label = isExtra ? extraLabel : step?.label;
@@ -319,20 +328,47 @@ function CameraCapture({ step, stepIndex, totalRequired, isExtra, extraLabel, on
   }, []);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync reset before async camera open */
     let active = true;
-    let currentStream = null;
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
-      if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
-      currentStream = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setStreamObj(stream);
-      setStreamReady(true);
-    });
+    setStreamReady(false);
+    setStreamErrorKey(null);
+    setStreamObj(null);
+    streamRef.current = null;
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    acquireCameraStream({
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    })
+      .then((stream) => {
+        if (!active) {
+          stopMediaStream(stream);
+          return;
+        }
+        streamRef.current = stream;
+        setStreamObj(stream);
+        setStreamReady(true);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setStreamErrorKey(cameraErrorToTranslationKey(err));
+      });
+
     return () => {
       active = false;
-      currentStream?.getTracks().forEach(t => t.stop());
+      stopMediaStream(streamRef.current);
+      streamRef.current = null;
     };
-  }, []);
+  }, [streamRetryToken]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    const s = streamObj;
+    if (!v || !s) return;
+    v.srcObject = s;
+    const p = v.play?.();
+    if (p && typeof p.then === "function") p.catch(() => {});
+  }, [streamObj]);
 
   const capture = () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -355,6 +391,20 @@ function CameraCapture({ step, stepIndex, totalRequired, isExtra, extraLabel, on
       <GlobalStyle />
       <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
+
+      {streamErrorKey && (
+        <div className="absolute inset-0 z-30 bg-black/90 flex flex-col items-center justify-center px-6 text-center">
+          <AlertCircle className="w-10 h-10 text-red-400 mb-3 shrink-0" />
+          <p className="text-white text-sm mb-4 leading-relaxed">{t(streamErrorKey)}</p>
+          <button
+            type="button"
+            onClick={() => setStreamRetryToken((x) => x + 1)}
+            className="w-full max-w-xs py-3 rounded-xl bg-white text-black font-syne font-bold text-sm active:scale-95 transition-transform"
+          >
+            {t("Try again")}
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent px-5 pt-5 pb-8">
@@ -678,7 +728,7 @@ function ReviewSubmit({ requiredPhotos, wsPhotos, extraPhotos, onSubmit, onRetak
 }
 
 // ─── SCREEN 8: SUCCESS ────────────────────────────────────────────────────────
-function SuccessScreen({ reqId, totalPhotos }) {
+function SuccessScreen() {
   const { t, i18n } = useTranslation();
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center" dir={i18n.dir()}>
@@ -696,6 +746,7 @@ function SuccessScreen({ reqId, totalPhotos }) {
 
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function MotorClaim() {
+  const { t, i18n } = useTranslation();
   const params = useParams();
   const userId = params.user_id || params.userId || null;
   const uniqueId = params.unique_id || params.uniqueId || localStorage.getItem("unique_id") || null;
@@ -708,8 +759,6 @@ export default function MotorClaim() {
   const [retakeTarget, setRetakeTarget] = useState(null); // { type:'required'|'extra', index }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extraCount, setExtraCount] = useState(0);        // running counter for naming
-  const [reqId] = useState(() => "MC-" + Date.now().toString(36).toUpperCase());
-
   // ── Camera capture handler ──
   const handleCapture = async (dataUrl) => {
     // Rotate license plate / chassis photos (as in Preclaim) for consistent OCR upload
@@ -871,18 +920,41 @@ export default function MotorClaim() {
     />
   );
 
-  if (screen === "ws-camera") return (
-    <VehicleSideCapture
-      userId={userId}
-      uniqueId={uniqueId}
-      onAllCaptured={handleWsCaptured}
-      onBack={() => {
-        // Return to manual license/chassis capture
-        setCaptureIndex(REQUIRED_STEPS.length - 1);
-        setScreen("camera");
-      }}
-    />
-  );
+  if (screen === "ws-camera") {
+    if (!userId || !uniqueId) {
+      return (
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center px-7 text-center" dir={i18n.dir()}>
+          <GlobalStyle />
+          <AlertCircle className="w-12 h-12 text-amber-500 mb-4" />
+          <h2 className="font-syne text-xl font-bold text-gray-900 mb-2">{t("Missing link data")}</h2>
+          <p className="text-gray-600 text-sm leading-relaxed mb-8 max-w-sm">
+            {t("This step needs a valid inspection link (user id and session id). Use the link you were sent or contact support.")}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setCaptureIndex(REQUIRED_STEPS.length - 1);
+              setScreen("camera");
+            }}
+            className="w-full max-w-sm py-4 rounded-2xl text-white font-syne font-bold kfh-bg"
+          >
+            {t("Go back")}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <VehicleSideCapture
+        userId={userId}
+        uniqueId={uniqueId}
+        onAllCaptured={handleWsCaptured}
+        onBack={() => {
+          setCaptureIndex(REQUIRED_STEPS.length - 1);
+          setScreen("camera");
+        }}
+      />
+    );
+  }
 
   if (screen === "camera_extra") return (
     <CameraCapture
@@ -925,6 +997,6 @@ export default function MotorClaim() {
   );
 
   if (screen === "success") return (
-    <SuccessScreen reqId={reqId} totalPhotos={requiredPhotos.length + wsPhotos.length + extraPhotos.length} />
+    <SuccessScreen />
   );
 }

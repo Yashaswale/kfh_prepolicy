@@ -20,22 +20,6 @@ const SIDE_LABELS = {
     right: "Right Side",
 };
 
-function getNextSide(capturedSides) {
-    const allSides = SIDE_ORDER;
-    if (!capturedSides) return allSides[0];
-
-    const captured = new Set(Object.keys(capturedSides).filter((k) => capturedSides[k]));
-    const remaining = allSides.filter((s) => !captured.has(s));
-    if (!remaining.length) return null;
-
-    // If we have one of the left/right sides, prompt for the other next (better UX)
-    if (captured.has("left") && !captured.has("right")) return "right";
-    if (captured.has("right") && !captured.has("left")) return "left";
-
-    // Otherwise fall back to a fixed order
-    return remaining[0];
-}
-
 export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     // ── State ──────────────────────────────────────────────────────────────────
     const [bbox, setBbox] = useState(null);
@@ -47,7 +31,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     // Temporarily hold the captured dataUrl until verified
     const [pendingPhoto, setPendingPhoto] = useState(null);
     // The side the server has detected for the pending photo
-    const [pendingDetectedSide, setPendingDetectedSide] = useState(null);
+    const [, setPendingDetectedSide] = useState(null);
     // Track capture step: 0=front,1=rear,2=any,3=any
     const [captureStep, setCaptureStep] = useState(0);
     const captureStepRef = useRef(captureStep);
@@ -248,11 +232,15 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                 const attemptsForSide = attemptsRef.current[attemptKey] || 0;
 
                 const expectedSide = currentSideRef.current;
-                
-                // Success implies it's explicitly correct from the backend, 
+                const detectedStr = typeof data.detected === "string" ? data.detected : "";
+
+                // Success implies it's explicitly correct from the backend,
                 // or the detected side matches what we expect
-                const isSuccess = data.correct === true || 
-                                 (data.detected && data.detected.toLowerCase() === expectedSide.toLowerCase());
+                const isSuccess =
+                    data.correct === true ||
+                    (detectedStr &&
+                        expectedSide &&
+                        detectedStr.toLowerCase() === expectedSide.toLowerCase());
 
                 if (isSuccess) {
                     setCaptureResult("success");
