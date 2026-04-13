@@ -282,6 +282,33 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         setPendingDetectedSide(null);
     }, [cleanup]);
 
+    // ── Page/tab close cleanup ────────────────────────────────────────────────
+    useEffect(() => {
+        const handlePageExit = () => {
+            if (wsRef.current) {
+                try {
+                    wsRef.current.onopen = null;
+                    wsRef.current.onmessage = null;
+                    wsRef.current.onerror = null;
+                    wsRef.current.onclose = null;
+                    wsRef.current.close();
+                } catch {
+                    // ignore
+                } finally {
+                    wsRef.current = null;
+                }
+            }
+        };
+
+        // `pagehide` fires reliably on iOS Safari (including BFCache)
+        window.addEventListener("pagehide", handlePageExit);
+        window.addEventListener("beforeunload", handlePageExit);
+        return () => {
+            window.removeEventListener("pagehide", handlePageExit);
+            window.removeEventListener("beforeunload", handlePageExit);
+        };
+    }, []);
+
     // ── Unmount cleanup ────────────────────────────────────────────────────────
     useEffect(() => {
         return () => {
