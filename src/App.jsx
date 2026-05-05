@@ -5,6 +5,7 @@ import Preclaim from './components/Preclaim'
 import Windsheild from './components/Windsheild'
 import MotorClaim from './components/MotorClaim'
 import ProtectedRoute from './components/ProtectedRoute'
+import ResultsPage from './pages/ResultsPage'
 import './App.css'
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
         <Route path="/preclaim/:user_id/:unique_id" element={<Preclaim />} />
         <Route path="/windsheild/:user_id/:unique_id" element={<Windsheild />} />
         <Route path="/motorclaim/:user_id/:unique_id" element={<MotorClaim />} />
+        <Route path="/results/:id" element={<ResultsPage />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>

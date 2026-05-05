@@ -272,7 +272,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState("Newest First");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(() => Number(sessionStorage.getItem("dash_currentPage")) || 1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [showSendLink, setShowSendLink] = useState(false);
@@ -281,11 +281,13 @@ export default function App() {
   const [detailView, setDetailView] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showLogout, setShowLogout] = useState(false);
+  const [lastViewedId, setLastViewedId] = useState(() => sessionStorage.getItem("dash_lastViewedId") || null);
   const logoutRef = useRef(null);
 
   // Persist activeTab and activeNav to sessionStorage
   useEffect(() => { sessionStorage.setItem("dash_activeTab", activeTab); }, [activeTab]);
   useEffect(() => { sessionStorage.setItem("dash_activeNav", activeNav); }, [activeNav]);
+  useEffect(() => { sessionStorage.setItem("dash_currentPage", currentPage); }, [currentPage]);
 
   // Close logout dropdown on outside click
   useEffect(() => {
@@ -388,6 +390,17 @@ export default function App() {
                 timeStr = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
               } catch (_) { }
             }
+
+            let updatedAtStr = "—";
+            if (item.updated_at) {
+              try {
+                const dt = new Date(item.updated_at);
+                const d = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+                const t = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+                updatedAtStr = `${d} ${t}`;
+              } catch (_) { }
+            }
+
             return {
               id: item.id ?? index + 1,
               unique_verify_id: item.unique_verify_id ?? "",
@@ -396,6 +409,7 @@ export default function App() {
               policy: item.policy_number ?? "",
               date: dateStr,
               time: timeStr,
+              updatedAt: updatedAtStr,
               damage: item.damage_level ?? "",
               status: item.status ?? "",
               link: item.link ?? "",
@@ -439,6 +453,11 @@ export default function App() {
 
   const openOcrForRow = async (row) => {
     if (!row?.id) return;
+    
+    const rowIdStr = row.id.toString();
+    setLastViewedId(rowIdStr);
+    sessionStorage.setItem("dash_lastViewedId", rowIdStr);
+
     // Show the detail page immediately with loading state
     setDetailView({ row, ocrData: null, damageData: null, windshieldData: null, ocrLoading: true, ocrError: "", tab: activeTab });
     try {
@@ -666,7 +685,7 @@ export default function App() {
                       className="w-4 h-4 accent-green-500"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-10">#</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-10">ID</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">
                     <span className="flex items-center gap-1">
                       Customer Name
@@ -679,14 +698,17 @@ export default function App() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Updated At</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Damage Level</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">All Status</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Link</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Links</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 transition bg-white">
+                {rows.map((row, i) => {
+                  const isLastViewed = lastViewedId === row.id?.toString();
+                  return (
+                  <tr key={row.id} className={`border-b border-gray-100 transition ${isLastViewed ? 'bg-blue-50/80 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
@@ -695,12 +717,13 @@ export default function App() {
                         className="w-4 h-4 accent-green-500"
                       />
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                    <td className="px-4 py-3 text-gray-500">{row.id}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
                     <td className="px-4 py-3 text-gray-500">{row.email}</td>
                     <td className="px-4 py-3 text-gray-600">{row.policy}</td>
                     <td className="px-4 py-3 text-gray-600">{row.date}</td>
                     <td className="px-4 py-3 text-gray-600">{row.time}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.updatedAt}</td>
                     <td className="px-4 py-3">
                       {row.damage ? (
                         <span className={`${damageColors[row.damage] || "bg-gray-400"} text-white text-xs font-semibold px-3 py-1 rounded`}>
@@ -728,51 +751,72 @@ export default function App() {
                       })()}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        {row.status === "expired" ? (
-                          <button
-                            onClick={async () => {
-                              try {
-                                const resp = await regenerateInspectionLink({ unique_id: row.unique_verify_id });
-                                setRows(prev => prev.map(r => r.unique_verify_id === row.unique_verify_id ? {
-                                  ...r,
-                                  link: resp?.link || resp?.data?.link || r.link,
-                                  status: resp?.status || resp?.data?.status || "pending",
-                                } : r));
-                              } catch (err) {
-                                alert(err?.data?.detail || err?.message || "Failed to regenerate link");
-                              }
-                            }}
-                            className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded transition"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                            </svg>
-                            Regenerate Link
-                          </button>
-                        ) : row.link ? (
-                          <>
-                            <span className="text-blue-500 text-xs truncate max-w-[130px]">{row.link}</span>
+                      <div className="flex flex-col gap-2">
+                        {/* Customer Link */}
+                        <div className="flex items-center gap-2">
+                          {row.status === "expired" ? (
                             <button
-                              onClick={() => { navigator.clipboard.writeText(row.link); }}
-                              className="text-gray-400 hover:text-gray-600 transition"
-                              title="Copy link"
+                              onClick={async () => {
+                                try {
+                                  const resp = await regenerateInspectionLink({ unique_id: row.unique_verify_id });
+                                  setRows(prev => prev.map(r => r.unique_verify_id === row.unique_verify_id ? {
+                                    ...r,
+                                    link: resp?.link || resp?.data?.link || r.link,
+                                    status: resp?.status || resp?.data?.status || "pending",
+                                  } : r));
+                                } catch (err) {
+                                  alert(err?.data?.detail || err?.message || "Failed to regenerate link");
+                                }
+                              }}
+                              className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded transition"
                             >
-                              <CopyIcon />
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                              </svg>
+                              Regenerate Link
                             </button>
-                          </>
-                        ) : null}
-                        <button
-                          onClick={() => openOcrForRow(row)}
-                          className="text-gray-400 hover:text-gray-700 transition ml-1"
-                          title="View"
-                        >
-                          <EyeIcon />
-                        </button>
+                          ) : row.link ? (
+                            <>
+                              <span className="text-blue-500 text-xs truncate max-w-[130px]" title={row.link}>Cust: {row.link}</span>
+                              <button
+                                onClick={() => { navigator.clipboard.writeText(row.link); alert("Customer link copied!"); }}
+                                className="text-gray-400 hover:text-gray-600 transition"
+                                title="Copy Customer Link"
+                              >
+                                <CopyIcon />
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+
+                        {/* Result Link */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-600 text-xs truncate max-w-[130px]" title={`${window.location.origin}/results/${row.id}`}>
+                            Res: /results/{row.id}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const resultLink = `${window.location.origin}/results/${row.id}`;
+                              navigator.clipboard.writeText(resultLink);
+                              alert("Result link copied: " + resultLink);
+                            }}
+                            className="text-gray-400 hover:text-green-600 transition"
+                            title="Copy Result Link"
+                          >
+                            <CopyIcon />
+                          </button>
+                          <button
+                            onClick={() => openOcrForRow(row)}
+                            className="text-gray-400 hover:text-gray-700 transition ml-1"
+                            title="View"
+                          >
+                            <EyeIcon />
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

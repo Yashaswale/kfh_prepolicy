@@ -67,8 +67,9 @@ export default function LoginPage() {
             Log In to Dashboard
           </h1>
 
-          <div className="mb-5">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          <form onSubmit={handleLogin}>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
               Email Address
             </label>
             <input
@@ -117,13 +118,14 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="w-full bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded text-base transition"
-          >
-            {loading ? "Signing In..." : "Sign In"}
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded text-base transition"
+            >
+              {loading ? "Signing In..." : "Sign In"}
+            </button>
+          </form>
         </div>
       </div>
     </div>

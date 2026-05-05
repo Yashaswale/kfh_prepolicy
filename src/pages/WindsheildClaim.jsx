@@ -264,28 +264,60 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 
 // ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
 function FullscreenImageModal({ imageUrl, label, onClose }) {
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+
   if (!imageUrl) return null;
+
+  const handleZoomIn = (e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.5, 5)); };
+  const handleZoomOut = (e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.5, 0.5)); };
+  const handleRotate = (e) => { e.stopPropagation(); setRotation(r => r + 90); };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center overflow-hidden" onClick={onClose}>
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 px-6 py-3 rounded-full z-20" onClick={(e) => e.stopPropagation()}>
+        <button onClick={handleZoomOut} className="text-white hover:text-green-400 transition" title="Zoom Out">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6" />
+          </svg>
+        </button>
+        <span className="text-white text-sm font-medium w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={handleZoomIn} className="text-white hover:text-green-400 transition" title="Zoom In">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+          </svg>
+        </button>
+        <div className="w-px h-6 bg-white/20 mx-2" />
+        <button onClick={handleRotate} className="text-white hover:text-green-400 transition" title="Rotate">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+
       <button
         onClick={onClose}
-        className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-10"
+        className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors z-20"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
       {label && (
-        <div className="absolute top-5 left-5 bg-black/60 px-4 py-2 rounded-xl">
+        <div className="absolute top-5 left-5 bg-black/60 px-4 py-2 rounded-xl z-20">
           <span className="text-white text-sm font-semibold">{label}</span>
         </div>
       )}
-      <img
-        src={imageUrl}
-        alt={label || "Full screen"}
-        className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
-        onClick={(e) => e.stopPropagation()}
-      />
+      
+      <div className="w-full h-full flex items-center justify-center overflow-auto" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+        <img
+          src={imageUrl}
+          alt={label || "Full screen"}
+          className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg transition-transform duration-200"
+          style={{ transform: `scale(${zoom}) rotate(${rotation}deg)` }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
     </div>
   );
 }
