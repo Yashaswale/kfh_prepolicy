@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { getAccountSummary, listInspections } from "../api";
+import { useUser } from "../context/UserContext";
+import { isClaimsType, isPrePolicyType } from "../access/accessControl";
 
 const DAMAGE_LEVELS = ["No Damage", "Minor Damage", "Major Damage"];
 
@@ -86,6 +88,7 @@ function DamageBadge({ level }) {
 
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const { user, access } = useUser();
   const [chartView, setChartView] = useState("Days");
   const MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const now = new Date();
@@ -112,6 +115,13 @@ export default function Dashboard() {
   const [rows, setRows] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
+
+  const allowedTypes = useMemo(() => {
+    const allowed = [];
+    if (access?.canAccessPrePolicy) allowed.push("vehicle");
+    if (access?.canAccessClaims) allowed.push("motor", "windshield");
+    return allowed.length ? allowed : ["vehicle"];
+  }, [access]);
 
   // Debounce search
   useEffect(() => {
@@ -196,7 +206,15 @@ export default function Dashboard() {
           setServerTotalPages(pages);
           if (current !== page) setPage(current);
 
-          const mapped = results.map((item, index) => {
+          const mapped = results
+            .filter((item) => {
+              const t = item?.type;
+              if (typeof t !== "string") return true;
+              if (isPrePolicyType(t)) return allowedTypes.includes("vehicle");
+              if (isClaimsType(t)) return allowedTypes.includes(t);
+              return true;
+            })
+            .map((item, index) => {
             let dateStr = "";
             let timeStr = "";
             if (item.created_at) {
@@ -210,15 +228,29 @@ export default function Dashboard() {
               id: item.id ?? index + 1,
               name: item.customer_name ?? "-",
               email: item.email ?? "",
-              type: item.type_display ?? "",
+              type: item.type_display ?? item.type ?? "",
               policyNumber: item.policy_number ?? "",
               damageLevel: item.damage_level ?? "",
               date: dateStr,
               time: timeStr,
+              ownerEmail:
+                item?.created_by_email ||
+                item?.owner_email ||
+                item?.agent_email ||
+                item?.user_email ||
+                item?.created_by?.email ||
+                item?.owner?.email ||
+                item?.user?.email ||
+                "",
             };
           });
-          setRows(mapped);
-          setSelected(new Set(mapped.map((row) => row.id)));
+          const filtered =
+            access?.scope === "self" && user?.email
+              ? mapped.filter((r) => !r.ownerEmail || r.ownerEmail === user.email)
+              : mapped;
+
+          setRows(filtered);
+          setSelected(new Set(filtered.map((row) => row.id)));
         }
       } catch {
         if (!cancelled) {
@@ -236,7 +268,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearch, statusFilter, fromDate, toDate, sortBy, page]);
+  }, [debouncedSearch, statusFilter, fromDate, toDate, sortBy, page, allowedTypes, access, user]);
 
   const useServerPagination = serverTotalPages > 1 || serverTotalCount > rows.length;
   const computedTotalPages = useServerPagination ? serverTotalPages : Math.max(1, Math.ceil(rows.length / showEntries));
@@ -464,7 +496,7 @@ export default function Dashboard() {
                   <td className="px-3 py-3 text-sm text-gray-500">{baseIndex + idx + 1}</td>
                   <td className="px-3 py-3 text-sm text-gray-800 font-medium">{row.name}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{row.email}</td>
-                  <td className="px-3 py-3 text-sm text-gray-600">{row.type_display}</td>
+                  <td className="px-3 py-3 text-sm text-gray-600">{row.type}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{row.policyNumber}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{row.date}</td>
                   <td className="px-3 py-3 text-sm text-gray-600">{row.time}</td>

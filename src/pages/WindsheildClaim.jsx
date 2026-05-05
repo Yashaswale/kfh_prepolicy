@@ -265,6 +265,21 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 // ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
 function FullscreenImageModal({ imageUrl, label, onClose }) {
   if (!imageUrl) return null;
+  const [rotationDeg, setRotationDeg] = useState(0);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    setRotationDeg(0);
+    setScale(1);
+  }, [imageUrl]);
+
+  const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+  const zoomIn = () => setScale((s) => clamp(Number((s + 0.2).toFixed(2)), 0.2, 5));
+  const zoomOut = () => setScale((s) => clamp(Number((s - 0.2).toFixed(2)), 0.2, 5));
+  const rotateLeft = () => setRotationDeg((d) => (d - 90) % 360);
+  const rotateRight = () => setRotationDeg((d) => (d + 90) % 360);
+  const reset = () => { setRotationDeg(0); setScale(1); };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center" onClick={onClose}>
       <button
@@ -280,12 +295,79 @@ function FullscreenImageModal({ imageUrl, label, onClose }) {
           <span className="text-white text-sm font-semibold">{label}</span>
         </div>
       )}
-      <img
-        src={imageUrl}
-        alt={label || "Full screen"}
-        className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg"
+      <div
+        className="max-w-[95vw] max-h-[90vh] flex items-center justify-center"
         onClick={(e) => e.stopPropagation()}
-      />
+        onWheel={(e) => {
+          e.preventDefault();
+          if (e.deltaY < 0) zoomIn();
+          else zoomOut();
+        }}
+      >
+        <img
+          src={imageUrl}
+          alt={label || "Full screen"}
+          className="object-contain rounded-lg select-none"
+          draggable={false}
+          style={{
+            maxWidth: "95vw",
+            maxHeight: "90vh",
+            transform: `rotate(${rotationDeg}deg) scale(${scale})`,
+            transformOrigin: "center",
+            transition: "transform 120ms ease-out",
+          }}
+        />
+      </div>
+
+      <div
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/60 border border-white/10 rounded-2xl px-3 py-2 flex items-center gap-2 text-white z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors"
+          onClick={rotateLeft}
+          title="Rotate left"
+        >
+          Rotate −90°
+        </button>
+        <button
+          type="button"
+          className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors"
+          onClick={rotateRight}
+          title="Rotate right"
+        >
+          Rotate +90°
+        </button>
+        <div className="w-px h-7 bg-white/10 mx-1" />
+        <button
+          type="button"
+          className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors"
+          onClick={zoomOut}
+          title="Zoom out"
+        >
+          −
+        </button>
+        <span className="text-xs font-semibold tabular-nums w-14 text-center">
+          {Math.round(scale * 100)}%
+        </span>
+        <button
+          type="button"
+          className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors"
+          onClick={zoomIn}
+          title="Zoom in"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors"
+          onClick={reset}
+          title="Reset"
+        >
+          Reset
+        </button>
+      </div>
     </div>
   );
 }
@@ -615,7 +697,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
         {/* Error banner */}
         {ocrError && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-6 py-4 mb-6 text-sm text-red-700 flex items-center gap-3">
-            <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
             {ocrError}

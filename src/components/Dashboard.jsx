@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
 import PrePolicyAssessmentResult from "../pages/Pre-policy";
 import WindShieldAssessmentResult from "../pages/WindsheildClaim";
-import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults, regenerateInspectionLink } from "../api";
+import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults, regenerateInspectionLink, startAssessment, startWindshieldAssessment } from "../api";
 import { clearAuthData } from "../utils/auth";
+import { useUser } from "../context/UserContext";
+import { isClaimsType, isPrePolicyType } from "../access/accessControl";
 
 // ---- Icons ----
 const KFHLogo = () => (
@@ -38,7 +40,7 @@ const CopyIcon = () => (
 );
 
 const ChevronDown = () => (
-  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
   </svg>
 );
@@ -259,33 +261,95 @@ const TAB_TYPE_MAP = {
   wind: "windshield",
 };
 
+function getOwnerEmailFromItem(item) {
+  const candidates = [
+    item?.created_by_email,
+    item?.owner_email,
+    item?.agent_email,
+    item?.user_email,
+    item?.created_by?.email,
+    item?.owner?.email,
+    item?.user?.email,
+  ];
+  return candidates.find((v) => typeof v === "string" && v.includes("@")) || "";
+}
+
 // ---- Main Component ----
 export default function App() {
   const navigate = useNavigate();
+  const { user, demoRole, setDemoRole, roles, access } = useUser();
   const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem("dash_activeTab") || "pre");
   const [activeNav, setActiveNav] = useState(() => sessionStorage.getItem("dash_activeNav") || "dashboard");
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState([]);
   const [allChecked, setAllChecked] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("All Status");
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("Newest First");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState(() => sessionStorage.getItem("dash_statusFilter") || "All Status");
+  const [search, setSearch] = useState(() => sessionStorage.getItem("dash_search") || "");
+  const [sortBy, setSortBy] = useState(() => sessionStorage.getItem("dash_sortBy") || "Newest First");
+  const [dateFrom, setDateFrom] = useState(() => sessionStorage.getItem("dash_dateFrom") || "");
+  const [dateTo, setDateTo] = useState(() => sessionStorage.getItem("dash_dateTo") || "");
+  const [currentPage, setCurrentPage] = useState(() => parseInt(sessionStorage.getItem("dash_currentPage") || "1", 10));
+  const [lastViewedRowId, setLastViewedRowId] = useState(() => {
+    const id = sessionStorage.getItem("dash_lastViewedRowId");
+    return id && id !== "null" ? String(id) : null;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [showSendLink, setShowSendLink] = useState(false);
   const [loadingRows, setLoadingRows] = useState(false);
   const [rowsError, setRowsError] = useState("");
-  const [detailView, setDetailView] = useState(null);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(() => sessionStorage.getItem("dash_search") || "");
   const [showLogout, setShowLogout] = useState(false);
   const logoutRef = useRef(null);
+
+  const [reassessingId, setReassessingId] = useState(null);
+
+  const handleReassessment = async (row) => {
+    if (!row?.unique_verify_id) return;
+    setReassessingId(row.id);
+    try {
+      if (activeTab === "wind") {
+        await startWindshieldAssessment({ unique_id: row.unique_verify_id });
+      } else {
+        await startAssessment({ unique_id: row.unique_verify_id });
+      }
+      alert("Reassessment started successfully!");
+    } catch (err) {
+      alert(err?.data?.detail || err?.message || "Reassessment failed");
+    } finally {
+      setReassessingId(null);
+    }
+  };
 
   // Persist activeTab and activeNav to sessionStorage
   useEffect(() => { sessionStorage.setItem("dash_activeTab", activeTab); }, [activeTab]);
   useEffect(() => { sessionStorage.setItem("dash_activeNav", activeNav); }, [activeNav]);
+  useEffect(() => { sessionStorage.setItem("dash_statusFilter", statusFilter); }, [statusFilter]);
+  useEffect(() => { sessionStorage.setItem("dash_search", search); }, [search]);
+  useEffect(() => { sessionStorage.setItem("dash_sortBy", sortBy); }, [sortBy]);
+  useEffect(() => { sessionStorage.setItem("dash_dateFrom", dateFrom); }, [dateFrom]);
+  useEffect(() => { sessionStorage.setItem("dash_dateTo", dateTo); }, [dateTo]);
+  useEffect(() => { sessionStorage.setItem("dash_currentPage", currentPage.toString()); }, [currentPage]);
+  useEffect(() => { if (lastViewedRowId) sessionStorage.setItem("dash_lastViewedRowId", lastViewedRowId); }, [lastViewedRowId]);
+
+  const allowedTabs = useMemo(() => {
+    const allowed = [];
+    if (access?.canAccessPrePolicy) allowed.push("pre");
+    if (access?.canAccessClaims) {
+      allowed.push("motor");
+      allowed.push("wind");
+    }
+    return allowed.length ? allowed : ["pre"];
+  }, [access]);
+
+  // Ensure active tab is always allowed for the current role.
+  useEffect(() => {
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0]);
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedTabs]);
 
   // Close logout dropdown on outside click
   useEffect(() => {
@@ -327,12 +391,14 @@ export default function App() {
 
   // Debounce search input — only trigger API after 500ms of no typing
   useEffect(() => {
+    if (search === debouncedSearch) return;
+
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       setCurrentPage(1);
     }, 500);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, debouncedSearch]);
 
 
   // Load inspections list from API
@@ -399,12 +465,18 @@ export default function App() {
               damage: item.damage_level ?? "",
               status: item.status ?? "",
               link: item.link ?? "",
+              ownerEmail: getOwnerEmailFromItem(item),
             };
           });
 
-          setRows(mapped);
-          setSelected(mapped.map(() => true));
-          setAllChecked(mapped.length > 0);
+          const filtered =
+            access?.scope === "self" && user?.email
+              ? mapped.filter((r) => !r.ownerEmail || r.ownerEmail === user.email)
+              : mapped;
+
+          setRows(filtered);
+          setSelected(filtered.map(() => true));
+          setAllChecked(filtered.length > 0);
         }
       } catch (err) {
         if (!cancelled) {
@@ -437,72 +509,14 @@ export default function App() {
     setAllChecked(next.every(Boolean));
   };
 
-  const openOcrForRow = async (row) => {
+  const openOcrForRow = (row) => {
     if (!row?.id) return;
-    // Show the detail page immediately with loading state
-    setDetailView({ row, ocrData: null, damageData: null, windshieldData: null, ocrLoading: true, ocrError: "", tab: activeTab });
-    try {
-      const isWindshield = activeTab === "wind";
-      // Fetch OCR data and results API in parallel
-      const [ocrData, resultsData] = await Promise.allSettled([
-        getInspectionOcr(row.id),
-        isWindshield ? getWindshieldResults(row.id) : getDamageResults(row.id),
-      ]);
-
-      const ocr = ocrData.status === "fulfilled" ? ocrData.value : null;
-      const results = resultsData.status === "fulfilled" ? resultsData.value : null;
-      const ocrErr = ocrData.status === "rejected"
-        ? (ocrData.reason?.data?.detail || ocrData.reason?.message || "Unable to load inspection details.")
-        : "";
-
-      setDetailView((prev) => prev ? {
-        ...prev,
-        ocrData: ocr,
-        damageData: isWindshield ? null : results,
-        windshieldData: isWindshield ? results : null,
-        ocrLoading: false,
-        ocrError: ocrErr,
-      } : null);
-    } catch (err) {
-      const msg =
-        err?.data?.detail ||
-        err?.data?.error ||
-        err?.message ||
-        "Unable to load inspection details.";
-      setDetailView((prev) => prev ? { ...prev, ocrError: msg, ocrLoading: false } : null);
-    }
+    setLastViewedRowId(String(row.id));
+    navigate(`/results/${row.id}`, { state: { row, tab: activeTab } });
   };
 
   const showingStart = totalCount === 0 ? 0 : (currentPage - 1) * rows.length + 1;
   const showingEnd = totalCount === 0 ? 0 : showingStart + rows.length - 1;
-
-  // ── Detail View ─────────────────────────────────────────────────────────────
-  if (detailView) {
-    // Windshield tab → WindShieldAssessmentResult with windshield-results
-    if (detailView.tab === "wind") {
-      return (
-        <WindShieldAssessmentResult
-          inspectionRow={detailView.row}
-          ocrData={detailView.ocrData}
-          windshieldData={detailView.windshieldData}
-          ocrLoading={detailView.ocrLoading}
-          ocrError={detailView.ocrError}
-          onBack={() => setDetailView(null)}
-        />
-      );
-    }
-    // Pre-policy / Motor tabs → PrePolicyAssessmentResult with damage-results
-    return (
-      <PrePolicyAssessmentResult
-        inspectionRow={detailView.row}
-        ocrData={detailView.ocrData}
-        damageData={detailView.damageData}
-        ocrLoading={detailView.ocrLoading}
-        ocrError={detailView.ocrError}
-        onBack={() => setDetailView(null)}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-sm">
@@ -510,12 +524,28 @@ export default function App() {
       {/* ── Top Nav ── */}
       <header className="bg-white border-b border-gray-200 px-6 flex items-center justify-between h-14">
         <KFHLogo />
-        <div className="relative" ref={logoutRef}>
-          <div onClick={() => setShowLogout(!showLogout)} className="flex items-center gap-1 text-gray-700 cursor-pointer hover:text-green-600 transition select-none">
+        <div className="flex items-center gap-4">
+          {/* Demo access role selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">Demo role</span>
+            <select
+              value={demoRole}
+              onChange={(e) => setDemoRole(e.target.value)}
+              className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 bg-white outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+              title="Demo access role"
+            >
+              {roles.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="relative" ref={logoutRef}>
+            <div onClick={() => setShowLogout(!showLogout)} className="flex items-center gap-1 text-gray-700 cursor-pointer hover:text-green-600 transition select-none">
             <svg className="w-7 h-7 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
             </svg>
-            <span className="font-medium">Admin</span>
+            <span className="font-medium">{user?.name || user?.email || "User"}</span>
             <ChevronDown />
           </div>
           {showLogout && (
@@ -528,6 +558,7 @@ export default function App() {
               </button>
             </div>
           )}
+          </div>
         </div>
       </header>
 
@@ -564,7 +595,7 @@ export default function App() {
         {/* Tabs + Send Button */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            {TABS.map(tab => (
+            {TABS.filter((t) => allowedTabs.includes(t.key)).map(tab => (
               <button
                 key={tab.key}
                 onClick={() => switchTab(tab.key)}
@@ -581,15 +612,25 @@ export default function App() {
             ))}
           </div>
 
-          <button
-            onClick={() => setShowSendLink(true)}
-            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded text-sm font-medium transition"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-            Send Link to Customer
-          </button>
+          {(() => {
+            const tabType = TAB_TYPE_MAP[activeTab];
+            const canCreateHere =
+              (isPrePolicyType(tabType) && access?.canAccessPrePolicy) ||
+              (isClaimsType(tabType) && access?.canAccessClaims);
+            return (
+              <button
+                onClick={() => setShowSendLink(true)}
+                disabled={!canCreateHere}
+                className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed"
+                title={!canCreateHere ? "You don't have access to create links for this section." : "Send link"}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Send Link to Customer
+              </button>
+            );
+          })()}
         </div>
 
         {/* Table Card */}
@@ -685,8 +726,10 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
-                  <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50 transition bg-white">
+                {rows.map((row, i) => {
+                  const isLastViewed = String(row.id) === String(lastViewedRowId);
+                  return (
+                  <tr key={row.id} className={`border-b border-gray-100 transition ${isLastViewed ? 'bg-blue-50 hover:bg-blue-100' : 'bg-white hover:bg-gray-50'}`}>
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
@@ -695,7 +738,7 @@ export default function App() {
                         className="w-4 h-4 accent-green-500"
                       />
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{i + 1}</td>
+                    <td className="px-4 py-3 text-gray-500">{row.id}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
                     <td className="px-4 py-3 text-gray-500">{row.email}</td>
                     <td className="px-4 py-3 text-gray-600">{row.policy}</td>
@@ -763,6 +806,23 @@ export default function App() {
                           </>
                         ) : null}
                         <button
+                          onClick={() => handleReassessment(row)}
+                          disabled={reassessingId === row.id}
+                          className="flex items-center gap-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded transition disabled:opacity-50"
+                        >
+                          {reassessingId === row.id ? (
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                          )}
+                          Reassess
+                        </button>
+                        <button
                           onClick={() => openOcrForRow(row)}
                           className="text-gray-400 hover:text-gray-700 transition ml-1"
                           title="View"
@@ -772,7 +832,7 @@ export default function App() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

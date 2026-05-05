@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { sendInspectionLink } from "../api";
+import { useUser } from "../context/UserContext";
+import { isClaimsType, isPrePolicyType } from "../access/accessControl";
 
 const SendLinkModal = ({ onClose }) => {
+  const { access } = useUser();
   const [type, setType] = useState("vehicle");
+  const [manual, setManual] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -14,12 +18,42 @@ const SendLinkModal = ({ onClose }) => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const allowedTypes = useMemo(() => {
+    const all = [
+      { id: "vehicle", label: "Vehicle Inspection" },
+      { id: "motor", label: "Motor Claim" },
+      { id: "windshield", label: "Wind Shield Claim" },
+    ];
+    return all.filter((t) => {
+      if (isPrePolicyType(t.id)) return access?.canAccessPrePolicy;
+      if (isClaimsType(t.id)) return access?.canAccessClaims;
+      return false;
+    });
+  }, [access]);
+
+  // If current selected type becomes disallowed, switch to first allowed.
+  useMemo(() => {
+    if (!allowedTypes.length) return;
+    const ok =
+      (isPrePolicyType(type) && access?.canAccessPrePolicy) ||
+      (isClaimsType(type) && access?.canAccessClaims);
+    if (!ok) setType(allowedTypes[0].id);
+  }, [allowedTypes, type, access]);
+
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
   const handleSubmit = async () => {
     setError("");
     setSuccess("");
+
+    const typeAllowed =
+      (isPrePolicyType(type) && access?.canAccessPrePolicy) ||
+      (isClaimsType(type) && access?.canAccessClaims);
+    if (!typeAllowed) {
+      setError("You don't have access to create links for this type.");
+      return;
+    }
 
     if (!form.name || !form.phone) {
       setError("Please fill in all required fields (Name, Phone).");
@@ -28,6 +62,7 @@ const SendLinkModal = ({ onClose }) => {
 
     const payload = {
       type,
+      manual,
       customer_name: form.name,
       phone_number: form.phone,
       email: form.email || null,
@@ -53,12 +88,6 @@ const SendLinkModal = ({ onClose }) => {
       setLoading(false);
     }
   };
-
-  const types = [
-    { id: "vehicle", label: "Vehicle Inspection" },
-    { id: "motor", label: "Motor Claim" },
-    { id: "windshield", label: "Wind Shield Claim" },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -116,7 +145,7 @@ const SendLinkModal = ({ onClose }) => {
               Type <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-nowrap gap-3">
-              {types.map((opt) => (
+              {allowedTypes.map((opt) => (
                 <label
                   key={opt.id}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl border cursor-pointer transition-all text-sm font-medium select-none ${type === opt.id
@@ -144,6 +173,32 @@ const SendLinkModal = ({ onClose }) => {
                 </label>
               ))}
             </div>
+            {!allowedTypes.length && (
+              <p className="mt-2 text-sm text-red-600">
+                No link types available for your access role.
+              </p>
+            )}
+          </div>
+
+          {/* Manual toggle */}
+          <div className="flex items-center justify-between rounded-2xl border border-gray-200 px-4 py-3 bg-gray-50/60">
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-gray-800">Manual</p>
+              <p className="text-xs text-gray-500 truncate">
+                Send a link to the manual upload flow (no camera/location permissions).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setManual((v) => !v)}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${manual ? "bg-green-600" : "bg-gray-300"}`}
+              aria-pressed={manual}
+              aria-label="Toggle manual upload"
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${manual ? "translate-x-6" : "translate-x-1"}`}
+              />
+            </button>
           </div>
 
           {/* Fields */}
