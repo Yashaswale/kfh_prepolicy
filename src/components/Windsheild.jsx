@@ -566,9 +566,47 @@ function CameraCapture({ step, stepIndex, onCapture, onBack, hasAcknowledgedRota
   );
 }
 
+// ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
+function FullscreenImageViewer({ imageUrl, onClose }) {
+  const [zoom, setZoom] = useState(1);
+
+  if (!imageUrl) return null;
+
+  const handleZoomIn = (e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.5, 5)); };
+  const handleZoomOut = (e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.5, 0.5)); };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center overflow-auto touch-pan-x touch-pan-y" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white">
+        <X className="w-6 h-6" />
+      </button>
+      
+      <div className="relative w-full h-full flex items-center justify-center" style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease-out', transformOrigin: 'center center' }}>
+        <img src={imageUrl} alt="Fullscreen" className="max-w-full max-h-full object-contain pointer-events-none" />
+      </div>
+
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 px-6 py-3 rounded-full z-20" onClick={(e) => e.stopPropagation()}>
+        <button onClick={handleZoomOut} className="text-white hover:text-green-400 transition p-2" title="Zoom Out">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6" />
+          </svg>
+        </button>
+        <span className="text-white text-sm font-medium w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={handleZoomIn} className="text-white hover:text-green-400 transition p-2" title="Zoom In">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── SCREEN 6: REVIEW & SUBMIT ────────────────────────────────────────────────
 function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitting }) {
   const { t, i18n } = useTranslation();
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+
   // Separate windshield steps for visual grouping
   const docPhotos = photos.filter(p => p.sideId === "license_plate" || p.sideId === "chassis_no");
   const wsPhotos = photos.filter(p => p.sideId === "windshield_plate" || p.sideId === "windshield_damage");
@@ -587,9 +625,15 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
           <RotateCcw className="w-3 h-3" /> {t("Retake")}
         </button>
       </div>
-      <div className="mx-4 mb-4 rounded-xl overflow-hidden aspect-video bg-black"
-        style={{ border: (photo.sideId === "windshield_plate" || photo.sideId === "windshield_damage") ? '2px solid #1e6fa8' : '2px solid #1a8a3c' }}>
+      <div 
+        className="mx-4 mb-4 rounded-xl overflow-hidden aspect-video bg-black cursor-pointer relative group"
+        style={{ border: (photo.sideId === "windshield_plate" || photo.sideId === "windshield_damage") ? '2px solid #1e6fa8' : '2px solid #1a8a3c' }}
+        onClick={() => setFullscreenImage(photo.dataUrl)}
+      >
         <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-white text-xs font-semibold">{t("Tap to view")}</span>
+        </div>
       </div>
     </div>
   );
@@ -622,6 +666,13 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
           <PhotoCard key={photo.sideId} photo={photo} index={photos.findIndex(p => p.sideId === photo.sideId)} />
         ))}
       </div>
+
+      {fullscreenImage && (
+        <FullscreenImageViewer 
+          imageUrl={fullscreenImage} 
+          onClose={() => setFullscreenImage(null)} 
+        />
+      )}
 
       <div className="px-5 mt-6 space-y-3">
         <button onClick={onSubmit} disabled={isSubmitting}
@@ -665,7 +716,11 @@ export default function WindshieldClaim() {
   const [photos, setPhotos] = useState([]);
   const [retakeIndex, setRetakeIndex] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const handleCapture = (dataUrl) => {
+  const [isUploadingOcr, setIsUploadingOcr] = useState(false);
+  const [unreadableData, setUnreadableData] = useState(null);
+  const { t, i18n } = useTranslation();
+
+  const proceedCapture = (dataUrl) => {
     const idx = retakeIndex !== null ? retakeIndex : captureIndex;
     const step = STEPS[idx];
     const newPhoto = { sideId: step.id, label: step.label, dataUrl };
@@ -688,6 +743,37 @@ export default function WindshieldClaim() {
     } else {
       setScreen("review");
     }
+  };
+
+  const handleCapture = async (dataUrl) => {
+    const idx = retakeIndex !== null ? retakeIndex : captureIndex;
+    const step = STEPS[idx];
+
+    if ((step.id === "license_plate" || step.id === "chassis_no") && unique_id) {
+      setIsUploadingOcr(true);
+      try {
+        const blob = dataUrlToBlob(dataUrl);
+        const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+
+        const formData = new FormData();
+        formData.append("unique_id", unique_id);
+        formData.append("type", step.id);
+        formData.append("image", imageFile);
+
+        const response = await uploadInspectionOcr(formData);
+        
+        if (response?.detected_text === "UNREADABLE") {
+          setUnreadableData({ finalDataUrl: dataUrl });
+          return;
+        }
+      } catch (err) {
+        // swallow
+      } finally {
+        setIsUploadingOcr(false);
+      }
+    }
+
+    proceedCapture(dataUrl);
   };
 
   const handleRetakeSingle = (index) => {
@@ -717,7 +803,6 @@ export default function WindshieldClaim() {
     setIsSubmitting(true);
 
     try {
-      const ocrPromises = [];
       const windshieldFormData = new FormData();
       if (unique_id) windshieldFormData.append("unique_id", unique_id);
       
@@ -734,16 +819,7 @@ export default function WindshieldClaim() {
         const imageFile = new File([blob], `${photo.sideId}.jpg`, { type: "image/jpeg" });
         console.log(`[Windshield Submit] Processing ${photo.sideId}: blob size = ${blob.size}, file size = ${imageFile.size}`);
 
-        if (photo.sideId === "license_plate" || photo.sideId === "chassis_no") {
-          const formData = new FormData();
-          if (unique_id) formData.append("unique_id", unique_id);
-          formData.append("type", photo.sideId);
-          formData.append("image", imageFile);
-
-          ocrPromises.push(
-            uploadInspectionOcr(formData).catch(err => console.error(`Error uploading ${photo.sideId}:`, err))
-          );
-        } else if (photo.sideId === "windshield_plate") {
+        if (photo.sideId === "windshield_plate") {
           windshieldFormData.append("windshield_plate_image", imageFile);
           hasPlateImage = true;
         } else if (photo.sideId === "windshield_damage") {
@@ -751,12 +827,6 @@ export default function WindshieldClaim() {
           hasCloseupImage = true;
         }
       });
-
-      // Step 1: Fire OCR uploads in parallel (non-blocking)
-      if (ocrPromises.length > 0) {
-        await Promise.all(ocrPromises);
-        console.log(`[Windshield Submit] OCR uploads complete`);
-      }
 
       // Step 2: Upload windshield images and wait for success
       console.log(`[Windshield Submit] hasPlateImage: ${hasPlateImage}, hasCloseupImage: ${hasCloseupImage}`);
@@ -797,17 +867,52 @@ export default function WindshieldClaim() {
     <PermissionsScreen onGranted={() => { setCaptureIndex(0); setPhotos([]); setScreen("camera"); }} />
   );
   if (screen === "camera") return (
-    <CameraCapture
-      step={STEPS[captureIndex]}
-      stepIndex={captureIndex}
-      onCapture={handleCapture}
-      hasAcknowledgedRotation={hasAcknowledgedRotation}
-      setHasAcknowledgedRotation={setHasAcknowledgedRotation}
-      onBack={() => {
-        if (retakeIndex !== null) { setRetakeIndex(null); setScreen("review"); return; }
-        captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1);
-      }}
-    />
+    <>
+      <CameraCapture
+        step={STEPS[captureIndex]}
+        stepIndex={captureIndex}
+        onCapture={handleCapture}
+        hasAcknowledgedRotation={hasAcknowledgedRotation}
+        setHasAcknowledgedRotation={setHasAcknowledgedRotation}
+        onBack={() => {
+          if (retakeIndex !== null) { setRetakeIndex(null); setScreen("review"); return; }
+          captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1);
+        }}
+      />
+      {isUploadingOcr && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
+          <Loader2 className="w-10 h-10 text-green-500 animate-spin mb-4" />
+          <p className="text-white text-sm font-medium">{t("Verifying image...")}</p>
+        </div>
+      )}
+
+      {unreadableData && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center px-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t("Text Not Detected")}</h3>
+            <p className="text-sm text-gray-600 mb-6">{t("We couldn't read the text clearly. Would you like to retake the photo or continue?")}</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => setUnreadableData(null)}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-bold"
+              >
+                {t("Retake Photo")}
+              </button>
+              <button 
+                onClick={() => {
+                  proceedCapture(unreadableData.finalDataUrl);
+                  setUnreadableData(null);
+                }}
+                className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 font-bold"
+              >
+                {t("Continue to Next Step")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
   if (screen === "review") return (
     <ReviewSubmit

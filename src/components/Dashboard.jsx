@@ -268,6 +268,7 @@ export default function App() {
   const [selected, setSelected] = useState([]);
   const [allChecked, setAllChecked] = useState(true);
   const [statusFilter, setStatusFilter] = useState("All Status");
+  const [correctResultFilter, setCorrectResultFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("Newest First");
   const [dateFrom, setDateFrom] = useState("");
@@ -357,6 +358,8 @@ export default function App() {
         end_date: dateTo || undefined,
         sort_by: sortByParam,
         page: currentPage,
+        ...(correctResultFilter === "Correct" ? { correct_result: true } : {}),
+        ...(correctResultFilter === "Incorrect" ? { correct_result: false } : {}),
       };
 
       try {
@@ -413,6 +416,8 @@ export default function App() {
               damage: item.damage_level ?? "",
               status: item.status ?? "",
               link: item.link ?? "",
+              correctResult: item.correct_result,
+              additionalNotes: item.additional_notes,
             };
           });
 
@@ -436,7 +441,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch, sortBy, currentPage]);
+  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch, sortBy, currentPage, correctResultFilter]);
 
   const toggleAll = () => {
     const next = !allChecked;
@@ -507,6 +512,7 @@ export default function App() {
           ocrLoading={detailView.ocrLoading}
           ocrError={detailView.ocrError}
           onBack={() => setDetailView(null)}
+          onRefresh={() => openOcrForRow(detailView.row)}
         />
       );
     }
@@ -519,6 +525,7 @@ export default function App() {
         ocrLoading={detailView.ocrLoading}
         ocrError={detailView.ocrError}
         onBack={() => setDetailView(null)}
+        onRefresh={() => openOcrForRow(detailView.row)}
       />
     );
   }
@@ -653,6 +660,14 @@ export default function App() {
               minWidth="130px"
             />
 
+            {/* Correct Result Filter */}
+            <SelectDropdown
+              value={correctResultFilter}
+              onChange={(val) => { setCorrectResultFilter(val); setCurrentPage(1); }}
+              options={["All", "Correct", "Incorrect"]}
+              minWidth="130px"
+            />
+
             {/* Sort By */}
             <div className="flex items-center gap-2 ml-auto text-sm">
               <span className="font-medium text-gray-700 whitespace-nowrap">Sort By</span>
@@ -701,6 +716,7 @@ export default function App() {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Updated At</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Damage Level</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">All Status</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Result Correct?</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Links</th>
                 </tr>
               </thead>
@@ -749,6 +765,22 @@ export default function App() {
                           </span>
                         );
                       })()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        {row.correctResult === true ? (
+                          <span className="text-green-600 font-semibold text-xs">Correct</span>
+                        ) : row.correctResult === false ? (
+                          <span className="text-red-600 font-semibold text-xs">Incorrect</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                        {row.additionalNotes && (
+                          <span className="text-gray-500 text-xs max-w-[120px] truncate" title={row.additionalNotes}>
+                            {row.additionalNotes}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-2">

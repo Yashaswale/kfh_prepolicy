@@ -62,7 +62,7 @@ const KFHHeader = () => {
   return (
     <div className="fade-up w-full flex items-center justify-between mb-8">
       <img src="/KFH_logo.png" alt="KFH Takaful" className="h-10 object-contain" />
-      <button 
+      <button
         onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'ar' : 'en')}
         className="px-3 py-1.5 bg-gray-100 text-[#1a8a3c] hover:bg-green-50 font-bold rounded-lg text-sm transition-colors"
       >
@@ -131,7 +131,7 @@ function Landing({ onStart }) {
         </p>
         <div className="fade-up-2 w-full space-y-3 mb-10">
           {[
-            { icon: <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("6 photos required: plate, chassis & 4 sides") },
+            { icon: <Camera className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("6 photos required: License plate, chassis & 4 sides") },
             { icon: <MapPin className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("GPS location will be recorded") },
             { icon: <Shield className="w-4 h-4" style={{ color: '#1a8a3c' }} />, text: t("Securely submitted for assessment") },
           ].map((item, i) => (
@@ -377,7 +377,7 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
     if (!v || !s) return;
     v.srcObject = s;
     const p = v.play?.();
-    if (p && typeof p.then === "function") p.catch(() => {});
+    if (p && typeof p.then === "function") p.catch(() => { });
   }, [streamObj]);
 
   const capture = () => {
@@ -476,9 +476,47 @@ function CameraCapture({ step, stepIndex, totalSteps, onCapture, onBack }) {
   );
 }
 
+// ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
+function FullscreenImageViewer({ imageUrl, onClose }) {
+  const [zoom, setZoom] = useState(1);
+
+  if (!imageUrl) return null;
+
+  const handleZoomIn = (e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.5, 5)); };
+  const handleZoomOut = (e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.5, 0.5)); };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center overflow-auto touch-pan-x touch-pan-y" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white">
+        <X className="w-6 h-6" />
+      </button>
+      
+      <div className="relative w-full h-full flex items-center justify-center" style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease-out', transformOrigin: 'center center' }}>
+        <img src={imageUrl} alt="Fullscreen" className="max-w-full max-h-full object-contain pointer-events-none" />
+      </div>
+
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 px-6 py-3 rounded-full z-20" onClick={(e) => e.stopPropagation()}>
+        <button onClick={handleZoomOut} className="text-white hover:text-green-400 transition p-2" title="Zoom Out">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6" />
+          </svg>
+        </button>
+        <span className="text-white text-sm font-medium w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={handleZoomIn} className="text-white hover:text-green-400 transition p-2" title="Zoom In">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── SCREEN 6 : REVIEW & SUBMIT ──────────────────────────────────────────────
 function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitting }) {
   const { t, i18n } = useTranslation();
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-10" dir={i18n.dir()}>
       <GlobalStyle />
@@ -500,12 +538,25 @@ function ReviewSubmit({ photos, onSubmit, onRetakeSingle, onRetakeAll, isSubmitt
                 <RotateCcw className="w-3 h-3" /> {t("Retake")}
               </button>
             </div>
-            <div className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black">
+            <div 
+              className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black cursor-pointer relative group"
+              onClick={() => setFullscreenImage(photo.dataUrl)}
+            >
               <img src={photo.dataUrl} alt={t(photo.label)} className="w-full h-full object-contain" />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-semibold">{t("Tap to view")}</span>
+              </div>
             </div>
           </div>
         ))}
       </div>
+
+      {fullscreenImage && (
+        <FullscreenImageViewer 
+          imageUrl={fullscreenImage} 
+          onClose={() => setFullscreenImage(null)} 
+        />
+      )}
 
       <div className="px-5 mt-6 space-y-3">
         <button onClick={onSubmit} disabled={isSubmitting}
@@ -602,6 +653,8 @@ export default function App() {
   const [damageResults, setDamageResults] = useState(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState(null);
+  const [isUploadingOcr, setIsUploadingOcr] = useState(false);
+  const [unreadableData, setUnreadableData] = useState(null);
 
   // ── Auth check ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -626,6 +679,20 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user_id, unique_id]);
 
+  const proceedCapture = (finalDataUrl) => {
+    const step = MANUAL_STEPS[captureIndex];
+    const updated = [...photos];
+    updated[captureIndex] = { sideId: step.id, label: step.label, dataUrl: finalDataUrl };
+    setPhotos(updated);
+
+    if (captureIndex < MANUAL_STEPS.length - 1) {
+      setCaptureIndex(i => i + 1);
+    } else {
+      // All manual steps done — transition to WebSocket side detection
+      setScreen("ws-camera");
+    }
+  };
+
   // ── Manual capture handler (license plate & chassis) ────────────────────────
   const handleCapture = async (dataUrl) => {
     const step = MANUAL_STEPS[captureIndex];
@@ -634,30 +701,32 @@ export default function App() {
     // Rotate license plate & chassis images 90° anti-clockwise
     const finalDataUrl = needsRotation ? await rotateImageCCW90(dataUrl) : dataUrl;
 
-    const updated = [...photos];
-    updated[captureIndex] = { sideId: step.id, label: step.label, dataUrl: finalDataUrl };
-    setPhotos(updated);
-
     // OCR upload for license plate & chassis number
     if (needsRotation && unique_id) {
-      const blob = dataUrlToBlob(finalDataUrl);
-      const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+      setIsUploadingOcr(true);
+      try {
+        const blob = dataUrlToBlob(finalDataUrl);
+        const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
 
-      const formData = new FormData();
-      formData.append("unique_id", unique_id);
-      formData.append("type", step.id);
-      formData.append("image", imageFile);
+        const formData = new FormData();
+        formData.append("unique_id", unique_id);
+        formData.append("type", step.id);
+        formData.append("image", imageFile);
 
-      uploadInspectionOcr(formData)
-        .catch(() => { /* swallow — capture flow must not be blocked */ });
+        const response = await uploadInspectionOcr(formData);
+        
+        if (response?.detected_text === "UNREADABLE") {
+          setUnreadableData({ finalDataUrl });
+          return;
+        }
+      } catch (err) {
+        // swallow — capture flow must not be blocked
+      } finally {
+        setIsUploadingOcr(false);
+      }
     }
 
-    if (captureIndex < MANUAL_STEPS.length - 1) {
-      setCaptureIndex(i => i + 1);
-    } else {
-      // All manual steps done — transition to WebSocket side detection
-      setScreen("ws-camera");
-    }
+    proceedCapture(finalDataUrl);
   };
 
   // ── WebSocket capture complete handler ───────────────────────────────────────
@@ -770,13 +839,48 @@ export default function App() {
     <PermissionsScreen onGranted={() => { setCaptureIndex(0); setPhotos([]); setWsPhotos([]); setScreen("camera"); }} />
   );
   if (screen === "camera") return (
-    <CameraCapture
-      step={MANUAL_STEPS[captureIndex]}
-      stepIndex={captureIndex}
-      totalSteps={MANUAL_STEPS.length}
-      onCapture={handleCapture}
-      onBack={() => captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1)}
-    />
+    <>
+      <CameraCapture
+        step={MANUAL_STEPS[captureIndex]}
+        stepIndex={captureIndex}
+        totalSteps={MANUAL_STEPS.length}
+        onCapture={handleCapture}
+        onBack={() => captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1)}
+      />
+      {isUploadingOcr && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
+          <Loader2 className="w-10 h-10 text-green-500 animate-spin mb-4" />
+          <p className="text-white text-sm font-medium">{t("Verifying image...")}</p>
+        </div>
+      )}
+
+      {unreadableData && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center px-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t("Text Not Detected")}</h3>
+            <p className="text-sm text-gray-600 mb-6">{t("We couldn't read the text clearly. Would you like to retake the photo or continue?")}</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => setUnreadableData(null)}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-bold"
+              >
+                {t("Retake Photo")}
+              </button>
+              <button 
+                onClick={() => {
+                  proceedCapture(unreadableData.finalDataUrl);
+                  setUnreadableData(null);
+                }}
+                className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 font-bold"
+              >
+                {t("Continue to Next Step")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
   if (screen === "ws-camera") {
     if (!user_id || !unique_id) {

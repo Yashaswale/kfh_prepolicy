@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { editInspectionOcr, uploadWindshieldImages, startWindshieldAssessment, editWindshieldAi } from "../api";
+import { editInspectionOcr, uploadWindshieldImages, reassessDamageResult, editWindshieldAi, editCorrectIncorrectResult, rotateDamageMedia } from "../api";
 // ─── Helpers ───────────────────────────────────────────────────────────────────────────────
 function dataUrlToBlob(dataUrl) {
   const arr = dataUrl.split(",");
@@ -263,15 +263,46 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 }
 
 // ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
-function FullscreenImageModal({ imageUrl, label, onClose }) {
+function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose, onRotateSuccess }) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+  const [savingRotate, setSavingRotate] = useState(false);
 
   if (!imageUrl) return null;
 
   const handleZoomIn = (e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.5, 5)); };
   const handleZoomOut = (e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.5, 0.5)); };
   const handleRotate = (e) => { e.stopPropagation(); setRotation(r => r + 90); };
+
+  const handleSaveRotation = async (e) => {
+    e.stopPropagation();
+    if (!mediaId) return;
+    setSavingRotate(true);
+    let normalizedRotation = rotation % 360;
+    if (normalizedRotation < 0) normalizedRotation += 360;
+    
+    if (normalizedRotation === 0) {
+      setSavingRotate(false);
+      return;
+    }
+
+    try {
+      await rotateDamageMedia(mediaId, {
+        rotate_angle: normalizedRotation,
+        direction: "right",
+        rotate_target: rotateTarget || "original"
+      });
+      setRotation(0);
+      if (onRotateSuccess) {
+        onRotateSuccess();
+      }
+    } catch (err) {
+      console.error("Rotate error", err);
+      alert(err?.message || "Failed to rotate image");
+    } finally {
+      setSavingRotate(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center overflow-hidden" onClick={onClose}>
@@ -293,6 +324,14 @@ function FullscreenImageModal({ imageUrl, label, onClose }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
         </button>
+        {mediaId && (rotation % 360 !== 0) && (
+          <>
+            <div className="w-px h-6 bg-white/20 mx-2" />
+            <button onClick={handleSaveRotation} disabled={savingRotate} className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors">
+              {savingRotate ? "Saving..." : "Save"}
+            </button>
+          </>
+        )}
       </div>
 
       <button
@@ -308,7 +347,7 @@ function FullscreenImageModal({ imageUrl, label, onClose }) {
           <span className="text-white text-sm font-semibold">{label}</span>
         </div>
       )}
-      
+
       <div className="w-full h-full flex items-center justify-center overflow-auto" onClick={(e) => { e.stopPropagation(); onClose(); }}>
         <img
           src={imageUrl}
@@ -459,14 +498,122 @@ function ImageSkeleton() {
   );
 }
 
+// ─── Correct / Incorrect Toggle ────────────────────────────────────────────────
+function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) {
+  const [correct, setCorrect] = useState(initialCorrect);
+  const [notes, setNotes] = useState(initialNotes || "");
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      await editCorrectIncorrectResult(inspectionId, {
+        correct_result: correct,
+        additional_notes: notes
+      });
+      setIsEditing(false);
+    } catch (err) {
+      setError(err?.message || "Failed to save result");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 no-print flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Result Validation</span>
+        {!isEditing && (
+          <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+            Edit Result
+          </button>
+        )}
+      </div>
+
+      {!isEditing ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium text-gray-600">Current Status:</span>
+            {correct === true ? (
+              <span className="text-green-600 font-bold bg-green-50 px-2 py-1 rounded">✓ Correct</span>
+            ) : correct === false ? (
+              <span className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded">✗ Incorrect</span>
+            ) : (
+              <span className="text-gray-400 font-medium">— Not Marked —</span>
+            )}
+          </div>
+          {notes && (
+            <div className="flex items-start gap-2 text-sm">
+              <span className="font-medium text-gray-600 mt-0.5">Notes:</span>
+              <span className="text-gray-800 bg-gray-50 px-3 py-2 rounded-lg flex-1 border border-gray-100">{notes}</span>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCorrect(true)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${correct === true ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600'}`}
+            >
+              ✓ Correct
+            </button>
+            <button
+              onClick={() => setCorrect(false)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${correct === false ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600'}`}
+            >
+              ✗ Incorrect
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Add additional notes..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="flex-1 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-4 py-2 text-sm outline-none"
+              disabled={saving}
+            />
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50 transition-colors"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button
+              onClick={() => {
+                setCorrect(initialCorrect);
+                setNotes(initialNotes || "");
+                setIsEditing(false);
+              }}
+              disabled={saving}
+              className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <span className="text-red-500 text-xs w-full">{error}</span>}
+    </div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack }) {
+export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack, onRefresh }) {
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
   const [editedWsImages, setEditedWsImages] = useState({});
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [reassessing, setReassessing] = useState(false);
+  const [showReassessModal, setShowReassessModal] = useState(false);
+  const [reassessRotation, setReassessRotation] = useState(false);
   const [reassessmentMsg, setReassessmentMsg] = useState("");
   const printRef = useRef(null);
 
@@ -514,10 +661,15 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
 
   const handleReassessment = async () => {
     if (!inspectionRow?.unique_verify_id) return;
+
+    setShowReassessModal(false);
     setReassessing(true);
     setReassessmentMsg("");
     try {
-      await startWindshieldAssessment({ unique_id: inspectionRow.unique_verify_id });
+      await reassessDamageResult({ 
+        unique_id: inspectionRow.unique_verify_id,
+        rotation: reassessRotation
+      });
       setReassessmentMsg("Reassessment started successfully!");
       setTimeout(() => setReassessmentMsg(""), 3000);
     } catch (err) {
@@ -602,7 +754,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
 
           <div className="flex items-center gap-3">
             <button
-              onClick={handleReassessment}
+              onClick={() => setShowReassessModal(true)}
               disabled={reassessing}
               className="no-print flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-blue-200 disabled:opacity-50"
             >
@@ -632,6 +784,46 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
         </div>
       </div>
 
+      {/* Reassessment Modal */}
+      {showReassessModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Start Reassessment</h3>
+            <p className="text-gray-500 text-sm mb-6">
+              Are you sure you want to start a new assessment for this windshield claim?
+            </p>
+            
+            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+              <div>
+                <span className="text-sm font-bold text-gray-800 block">Apply Rotation</span>
+                <span className="text-xs text-gray-500">Rotate images automatically</span>
+              </div>
+              <button 
+                onClick={() => setReassessRotation(!reassessRotation)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessRotation ? 'bg-blue-600' : 'bg-gray-300'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reassessRotation ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowReassessModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleReassessment}
+                className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Reassessment Status Banner */}
       {reassessmentMsg && (
         <div className="max-w-6xl mx-auto px-6 mt-4 no-print">
@@ -652,6 +844,15 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             </svg>
             {ocrError}
           </div>
+        )}
+
+        {/* Result Validation */}
+        {!ocrLoading && inspectionRow?.id && (
+          <CorrectIncorrectToggle
+            inspectionId={inspectionRow.id}
+            initialCorrect={windshieldData?.correct_result ?? inspectionRow.correctResult}
+            initialNotes={windshieldData?.additional_notes ?? inspectionRow.additionalNotes}
+          />
         )}
 
         {/* Customer Details */}
@@ -689,7 +890,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             <div className="grid grid-cols-2 gap-10">
               {/* License */}
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">License Number</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">Plate No</h3>
                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
                   onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate' })}>
                   {licensePlateImage ? (
@@ -703,7 +904,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                   )}
                 </div>
                 <EditableFieldRow
-                  label="License Number"
+                  label="Plate Number"
                   value={licensePlateText}
                   mediaId={licensePlateEntry?.id}
                 />
@@ -775,7 +976,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                     {/* Closeup Image */}
                     <div>
                       <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                        onClick={() => closeupUrl && setFullscreenImage({ url: closeupUrl, label: 'Windshield Closeup' })}>
+                        onClick={() => closeupUrl && setFullscreenImage({ url: closeupUrl, label: 'Windshield Closeup', mediaId: wsData.id, rotateTarget: 'original' })}>
                         {closeupUrl ? (
                           <img src={closeupUrl} alt="Windshield Closeup" className="w-full h-full object-cover" />
                         ) : (
@@ -794,7 +995,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                     {/* Plate / AI Image */}
                     <div>
                       <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                        onClick={() => plateUrl && setFullscreenImage({ url: plateUrl, label: 'Windshield Plate' })}>
+                        onClick={() => plateUrl && setFullscreenImage({ url: plateUrl, label: 'Windshield Plate', mediaId: wsData.id, rotateTarget: 'ai' })}>
                         {plateUrl ? (
                           <img src={plateUrl} alt="Windshield Plate" className="w-full h-full object-cover" />
                         ) : (
@@ -864,7 +1065,13 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
         <FullscreenImageModal
           imageUrl={fullscreenImage.url}
           label={fullscreenImage.label}
+          mediaId={fullscreenImage.mediaId}
+          rotateTarget={fullscreenImage.rotateTarget}
           onClose={() => setFullscreenImage(null)}
+          onRotateSuccess={() => {
+            setFullscreenImage(null);
+            if (onRefresh) onRefresh();
+          }}
         />
       )}
     </div>

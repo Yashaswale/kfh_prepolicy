@@ -613,9 +613,46 @@ function AddMorePhotos({ requiredPhotos, wsPhotos, extraPhotos, onAddMore, onDel
   );
 }
 
+// ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
+function FullscreenImageViewer({ imageUrl, onClose }) {
+  const [zoom, setZoom] = useState(1);
+
+  if (!imageUrl) return null;
+
+  const handleZoomIn = (e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.5, 5)); };
+  const handleZoomOut = (e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.5, 0.5)); };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center overflow-auto touch-pan-x touch-pan-y" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white">
+        <X className="w-6 h-6" />
+      </button>
+      
+      <div className="relative w-full h-full flex items-center justify-center" style={{ transform: `scale(${zoom})`, transition: 'transform 0.2s ease-out', transformOrigin: 'center center' }}>
+        <img src={imageUrl} alt="Fullscreen" className="max-w-full max-h-full object-contain pointer-events-none" />
+      </div>
+
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 px-6 py-3 rounded-full z-20" onClick={(e) => e.stopPropagation()}>
+        <button onClick={handleZoomOut} className="text-white hover:text-green-400 transition p-2" title="Zoom Out">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM7 10h6" />
+          </svg>
+        </button>
+        <span className="text-white text-sm font-medium w-10 text-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={handleZoomIn} className="text-white hover:text-green-400 transition p-2" title="Zoom In">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── SCREEN 7: REVIEW & SUBMIT ────────────────────────────────────────────────
 function ReviewSubmit({ requiredPhotos, wsPhotos, extraPhotos, onSubmit, onRetakeSingle, onRetakeExtra, onDeleteExtra, onAddMore, onRetakeSides, onRetakeAll, isSubmitting }) {
   const { t, i18n } = useTranslation();
+  const [fullscreenImage, setFullscreenImage] = useState(null);
   const allPhotos = [...requiredPhotos, ...wsPhotos, ...extraPhotos];
 
   return (
@@ -644,8 +681,14 @@ function ReviewSubmit({ requiredPhotos, wsPhotos, extraPhotos, onSubmit, onRetak
                 <RotateCcw className="w-3 h-3" /> {t("Retake")}
               </button>
             </div>
-            <div className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black">
+            <div 
+              className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black cursor-pointer relative group"
+              onClick={() => setFullscreenImage(photo.dataUrl)}
+            >
               <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-semibold">{t("Tap to view")}</span>
+              </div>
             </div>
           </div>
         ))}
@@ -665,8 +708,14 @@ function ReviewSubmit({ requiredPhotos, wsPhotos, extraPhotos, onSubmit, onRetak
                     <RotateCcw className="w-3 h-3" /> {t("Retake")}
                   </button>
                 </div>
-                <div className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black">
+                <div 
+                  className="mx-4 mb-4 rounded-xl overflow-hidden border-2 kfh-border aspect-video bg-black cursor-pointer relative group"
+                  onClick={() => setFullscreenImage(photo.dataUrl)}
+                >
                   <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-white text-xs font-semibold">{t("Tap to view")}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -694,8 +743,14 @@ function ReviewSubmit({ requiredPhotos, wsPhotos, extraPhotos, onSubmit, onRetak
                     </button>
                   </div>
                 </div>
-                <div className="mx-4 mb-4 rounded-xl overflow-hidden border-2 border-orange-300 aspect-video bg-black">
+                <div 
+                  className="mx-4 mb-4 rounded-xl overflow-hidden border-2 border-orange-300 aspect-video bg-black cursor-pointer relative group"
+                  onClick={() => setFullscreenImage(photo.dataUrl)}
+                >
                   <img src={photo.dataUrl} alt={photo.label} className="w-full h-full object-contain" />
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-white text-xs font-semibold">{t("Tap to view")}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -709,6 +764,13 @@ function ReviewSubmit({ requiredPhotos, wsPhotos, extraPhotos, onSubmit, onRetak
           <Plus className="w-4 h-4 mx-1" /> {t("Add More Photos")}
         </button>
       </div>
+
+      {fullscreenImage && (
+        <FullscreenImageViewer 
+          imageUrl={fullscreenImage} 
+          onClose={() => setFullscreenImage(null)} 
+        />
+      )}
 
       {/* Actions */}
       <div className="px-5 mt-6 space-y-3">
@@ -759,13 +821,11 @@ export default function MotorClaim() {
   const [retakeTarget, setRetakeTarget] = useState(null); // { type:'required'|'extra', index }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extraCount, setExtraCount] = useState(0);        // running counter for naming
-  // ── Camera capture handler ──
-  const handleCapture = async (dataUrl) => {
-    // Rotate license plate / chassis photos (as in Preclaim) for consistent OCR upload
-    const step = REQUIRED_STEPS[captureIndex];
-    const needsRotation = step?.id === "license_plate" || step?.id === "chassis_no";
-    const finalDataUrl = needsRotation ? await rotateImageCCW90(dataUrl) : dataUrl;
+  const [isUploadingOcr, setIsUploadingOcr] = useState(false);
+  const [unreadableData, setUnreadableData] = useState(null);
 
+  // ── Camera capture handler ──
+  const proceedCapture = (finalDataUrl) => {
     // Retaking a specific photo
     if (retakeTarget) {
       if (retakeTarget.type === "required") {
@@ -799,6 +859,7 @@ export default function MotorClaim() {
     }
 
     // Required photo flow (license, chassis)
+    const step = REQUIRED_STEPS[captureIndex];
     if (!step) return;
     const newPhoto = { sideId: step.id, label: step.label, dataUrl: finalDataUrl };
     const updated = [...requiredPhotos];
@@ -810,6 +871,44 @@ export default function MotorClaim() {
     } else {
       setScreen("ws-camera");
     }
+  };
+
+  const handleCapture = async (dataUrl) => {
+    // Determine which step we are capturing
+    const actualStep = retakeTarget && retakeTarget.type === "required" 
+      ? REQUIRED_STEPS[retakeTarget.index] 
+      : (!retakeTarget && screen !== "camera_extra") 
+        ? REQUIRED_STEPS[captureIndex] 
+        : null;
+
+    const needsRotation = actualStep?.id === "license_plate" || actualStep?.id === "chassis_no";
+    const finalDataUrl = needsRotation ? await rotateImageCCW90(dataUrl) : dataUrl;
+
+    if (needsRotation && uniqueId) {
+      setIsUploadingOcr(true);
+      try {
+        const blob = dataUrlToBlob(finalDataUrl);
+        const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
+
+        const formData = new FormData();
+        formData.append("unique_id", uniqueId);
+        formData.append("type", actualStep.id);
+        formData.append("image", imageFile);
+
+        const response = await uploadInspectionOcr(formData);
+        
+        if (response?.detected_text === "UNREADABLE") {
+          setUnreadableData({ finalDataUrl });
+          return;
+        }
+      } catch (err) {
+        // swallow
+      } finally {
+        setIsUploadingOcr(false);
+      }
+    }
+
+    proceedCapture(finalDataUrl);
   };
 
   const handleRetakeRequired = (index) => {
@@ -837,24 +936,6 @@ export default function MotorClaim() {
     }
 
     try {
-      // Upload OCR for license plate + chassis (do not send these to the damage images endpoint)
-      for (const photo of requiredPhotos) {
-        if (!photo?.dataUrl || !photo?.sideId) continue;
-        const blob = dataUrlToBlob(photo.dataUrl);
-        const imageFile = new File([blob], "image.jpg", { type: "image/jpeg" });
-
-        const formData = new FormData();
-        formData.append("unique_id", uniqueId);
-        formData.append("type", photo.sideId);
-        formData.append("image", imageFile);
-
-        try {
-          await uploadInspectionOcr(formData);
-        } catch {
-          // swallow — OCR upload should not block main flow
-        }
-      }
-
       // Upload damage images (only the 4 side photos + any optional extras)
       const formData = new FormData();
       formData.append("unique_id", uniqueId);
@@ -907,17 +988,52 @@ export default function MotorClaim() {
   );
 
   if (screen === "camera" || screen === "camera_required_retake") return (
-    <CameraCapture
-      step={REQUIRED_STEPS[captureIndex]}
-      stepIndex={captureIndex}
-      totalRequired={REQUIRED_STEPS.length}
-      isExtra={false}
-      onCapture={handleCapture}
-      onBack={() => {
-        if (retakeTarget) { setRetakeTarget(null); setScreen("review"); return; }
-        captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1);
-      }}
-    />
+    <>
+      <CameraCapture
+        step={REQUIRED_STEPS[captureIndex]}
+        stepIndex={captureIndex}
+        totalRequired={REQUIRED_STEPS.length}
+        isExtra={false}
+        onCapture={handleCapture}
+        onBack={() => {
+          if (retakeTarget) { setRetakeTarget(null); setScreen("review"); return; }
+          captureIndex === 0 ? setScreen("permissions") : setCaptureIndex(i => i - 1);
+        }}
+      />
+      {isUploadingOcr && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
+          <Loader2 className="w-10 h-10 text-green-500 animate-spin mb-4" />
+          <p className="text-white text-sm font-medium">{t("Verifying image...")}</p>
+        </div>
+      )}
+
+      {unreadableData && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex flex-col items-center justify-center px-6">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center">
+            <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t("Text Not Detected")}</h3>
+            <p className="text-sm text-gray-600 mb-6">{t("We couldn't read the text clearly. Would you like to retake the photo or continue?")}</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => setUnreadableData(null)}
+                className="w-full py-3 rounded-xl bg-green-600 text-white font-bold"
+              >
+                {t("Retake Photo")}
+              </button>
+              <button 
+                onClick={() => {
+                  proceedCapture(unreadableData.finalDataUrl);
+                  setUnreadableData(null);
+                }}
+                className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 font-bold"
+              >
+                {t("Continue to Next Step")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 
   if (screen === "ws-camera") {

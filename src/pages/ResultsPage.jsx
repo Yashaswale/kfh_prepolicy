@@ -15,50 +15,50 @@ export default function ResultsPage() {
   const [windshieldData, setWindshieldData] = useState(null);
   const [tab, setTab] = useState("pre");
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      setError("");
-      try {
-        // Fetch OCR, Damage, and Windshield results concurrently
-        const [ocrRes, dmgRes, windRes] = await Promise.allSettled([
-          getInspectionOcr(id),
-          getDamageResults(id),
-          getWindshieldResults(id)
-        ]);
+  const fetchData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      // Fetch OCR, Damage, and Windshield results concurrently
+      const [ocrRes, dmgRes, windRes] = await Promise.allSettled([
+        getInspectionOcr(id),
+        getDamageResults(id),
+        getWindshieldResults(id)
+      ]);
 
-        if (ocrRes.status === "rejected") {
-          throw new Error("Could not load inspection data. " + (ocrRes.reason?.message || ""));
-        }
-
-        const ocr = ocrRes.value;
-        const dmg = dmgRes.status === "fulfilled" ? dmgRes.value : null;
-        const wind = windRes.status === "fulfilled" ? windRes.value : null;
-
-        setOcrData(ocr);
-        
-        let isWindshield = false;
-        if (wind && !wind.error) {
-           isWindshield = true;
-           setWindshieldData(wind);
-        } else if (Array.isArray(ocr) && ocr.some(o => o.type.includes("windshield"))) {
-           isWindshield = true;
-        }
-
-        if (isWindshield) {
-           setTab("wind");
-        } else {
-           setDamageData(dmg);
-           setTab("pre");
-        }
-
-      } catch (err) {
-        setError(err.message || "Failed to load results");
-      } finally {
-        setLoading(false);
+      if (ocrRes.status === "rejected") {
+        throw new Error("Could not load inspection data. " + (ocrRes.reason?.message || ""));
       }
+
+      const ocr = ocrRes.value;
+      const dmg = dmgRes.status === "fulfilled" ? dmgRes.value : null;
+      const wind = windRes.status === "fulfilled" ? windRes.value : null;
+
+      setOcrData(ocr);
+      
+      let isWindshield = false;
+      if (wind && !wind.error) {
+         isWindshield = true;
+         setWindshieldData(wind);
+      } else if (Array.isArray(ocr) && ocr.some(o => o.type.includes("windshield"))) {
+         isWindshield = true;
+      }
+
+      if (isWindshield) {
+         setTab("wind");
+      } else {
+         setDamageData(dmg);
+         setTab("pre");
+      }
+
+    } catch (err) {
+      setError(err.message || "Failed to load results");
+    } finally {
+      setLoading(false);
     }
-    
+  };
+
+  useEffect(() => {
     if (id) {
       fetchData();
     }
@@ -111,6 +111,7 @@ export default function ResultsPage() {
         ocrLoading={false}
         ocrError={""}
         onBack={() => navigate(-1)}
+        onRefresh={() => fetchData()}
       />
     );
   }
@@ -123,6 +124,7 @@ export default function ResultsPage() {
       ocrLoading={false}
       ocrError={""}
       onBack={() => navigate(-1)}
+      onRefresh={() => fetchData()}
     />
   );
 }

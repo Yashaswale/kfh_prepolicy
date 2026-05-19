@@ -109,6 +109,28 @@ export function startAssessment(payload) {
   });
 }
 
+export function reassessDamageResult(payload) {
+  return apiRequest(ENDPOINTS.reassessDamageResult, {
+    method: 'POST',
+    body: payload,
+    auth: false,
+  });
+}
+
+export function editCorrectIncorrectResult(inspectionId, payload) {
+  if (!inspectionId) {
+    return Promise.reject(new Error('Inspection id is required'));
+  }
+  let path = ENDPOINTS.editCorrectIncorrectResult.replace('{inspection_id}', inspectionId);
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+  return apiRequest(path, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 export function uploadWindshieldImages(formData) {
   return apiRequestForm(ENDPOINTS.uploadWindshieldImages, {
     method: 'POST',
@@ -175,5 +197,19 @@ export function editWindshieldAi(mediaId, formData) {
   return apiRequestForm(path, {
     method: 'PUT',
     formData,
+  });
+}
+
+export function rotateDamageMedia(mediaId, payload) {
+  if (!mediaId) {
+    return Promise.reject(new Error('Media id is required to rotate image'));
+  }
+  let path = ENDPOINTS.rotateDamageMedia.replace('{media_id}', mediaId);
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+  return apiRequest(path, {
+    method: 'POST',
+    body: payload,
   });
 }
