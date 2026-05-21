@@ -25,6 +25,28 @@ function fillRoundRect(ctx, x, y, w, h, r) {
     ctx.fill();
 }
 
+const SIDE_GUIDE_IMAGES = {
+    front: "/Front_img.png",
+    rear: "/Back_img.png",
+    left: "/Left_img.png",
+    right: "/Right_img.png",
+};
+
+const SIDE_GUIDE_TITLES = {
+    front: "Front Side Capture Guide",
+    rear: "Rear Side Capture Guide",
+    left: "Left Side Capture Guide",
+    right: "Right Side Capture Guide",
+};
+
+const SIDE_GUIDE_TEXTS = {
+    front: "Front Side Instructions",
+    rear: "Rear Side Instructions",
+    left: "Left Side Instructions",
+    right: "Right Side Instructions",
+};
+
+
 /**
  * VehicleSideCapture — full-screen camera view with manual capture + WS verification.
  *
@@ -42,6 +64,8 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const [cameraRetryToken, setCameraRetryToken] = useState(0);
     const [capturedFlash, setCapturedFlash] = useState(false);
     const [showLandscapeModal, setShowLandscapeModal] = useState(true);
+    const [showInstructionModal, setShowInstructionModal] = useState(false);
+    const [autoShownSides, setAutoShownSides] = useState({});
 
     const {
         videoRef,
@@ -77,6 +101,33 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         }
         prevSideIndexRef.current = currentSideIndex;
     }, [currentSideIndex, sideOrder.length]);
+
+    // Auto-show instruction modal when entering a new side step (after landscape modal is dismissed)
+    useEffect(() => {
+        if (!showLandscapeModal && streamReady && currentSide) {
+            if (!autoShownSides[currentSide]) {
+                setAutoShownSides(prev => {
+                    if (prev[currentSide]) return prev;
+                    return { ...prev, [currentSide]: true };
+                });
+                setShowInstructionModal(true);
+            }
+        }
+    }, [currentSide, showLandscapeModal, streamReady, autoShownSides]);
+
+    // Auto-show instruction modal when side verification fails
+    useEffect(() => {
+        if (captureResult === "failed") {
+            setShowInstructionModal(true);
+        }
+    }, [captureResult]);
+
+    const handleCloseInstructionModal = () => {
+        setShowInstructionModal(false);
+        if (captureResult === "failed") {
+            retryCapture();
+        }
+    };
 
     // Acquire camera stream (retry-friendly; avoids unstable ref-as-dependency bugs on mobile)
     useEffect(() => {
@@ -117,7 +168,7 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         if (!v || !s || !streamReady) return;
         v.srcObject = s;
         const p = v.play?.();
-        if (p && typeof p.then === "function") p.catch(() => {});
+        if (p && typeof p.then === "function") p.catch(() => { });
     }, [streamReady, cameraRetryToken, videoRef]);
 
     // Connect to WebSocket once camera stream is ready and the modal is dismissed
@@ -339,11 +390,28 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                     <div className="instruction-card fade-up">
                         {/* Header: current side info */}
                         <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3">
                                 <Camera className="w-4 h-4 text-green-400" />
                                 <span className="text-white font-syne text-sm font-bold" style={{ fontWeight: 700 }}>
                                     {t(sideLabels[currentSide])}
                                 </span>
+                                {currentSide && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowInstructionModal(true)}
+                                        className="w-10 h-7 rounded overflow-hidden border border-white/20 bg-black/40 hover:scale-105 active:scale-95 transition-all relative group"
+                                        title={t("Show Guide")}
+                                    >
+                                        <img 
+                                            src={SIDE_GUIDE_IMAGES[currentSide]} 
+                                            alt={t(sideLabels[currentSide])} 
+                                            className="w-full h-full object-cover"
+                                        />
+                                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <span className="text-white text-[8px] font-bold">GUIDE</span>
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                             <span className="text-white/40 text-xs">
                                 {currentSideIndex + 1} / {sideOrder.length}
@@ -390,7 +458,13 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         {/* Instruction text when idle */}
                         {captureResult === "idle" && (
                             <p className="text-white/60 text-xs mb-4 leading-relaxed">
-                                {t("Point your camera at the")} <strong className="text-white/90">{t(sideLabels[currentSide])}</strong> {t("of the vehicle and tap")} <strong className="text-white/90">{t("Capture")}</strong>.
+                                {t("Point your camera at the")} <strong className="text-white/90">{t(sideLabels[currentSide])}</strong> {t("of the vehicle and tap")} <strong className="text-white/90">{t("Capture")}</strong>.{" "}
+                                <span 
+                                    className="text-green-400 hover:text-green-300 font-semibold cursor-pointer underline whitespace-nowrap" 
+                                    onClick={() => setShowInstructionModal(true)}
+                                >
+                                    {t("Tap thumbnail to view guide")}
+                                </span>
                             </p>
                         )}
 
@@ -485,6 +559,37 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             onClick={() => setShowLandscapeModal(false)}
                             disabled={!streamReady}
                             className={`w-full py-3 bg-white text-black font-bold rounded-xl active:scale-95 transition-transform ${!streamReady ? "opacity-40 cursor-not-allowed" : ""}`}
+                        >
+                            {t("I understand")}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Vehicle Side Instruction Modal */}
+            {showInstructionModal && currentSide && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom, 0px))" }}>
+                    <div className="bg-gray-900 border border-white/20 p-6 rounded-2xl w-full max-w-sm text-center fade-up shadow-2xl">
+                        <h3 className="text-xl font-syne font-bold text-white mb-4">
+                            {t(SIDE_GUIDE_TITLES[currentSide])}
+                        </h3>
+                        
+                        <div className="w-full aspect-video rounded-xl overflow-hidden border border-white/10 bg-black mb-4">
+                            <img 
+                                src={SIDE_GUIDE_IMAGES[currentSide]} 
+                                alt={t(sideLabels[currentSide])}
+                                className="w-full h-full object-contain"
+                            />
+                        </div>
+
+                        <p className="text-white/70 text-xs mb-6 leading-relaxed text-center font-normal">
+                            {t(SIDE_GUIDE_TEXTS[currentSide])}
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={handleCloseInstructionModal}
+                            className="w-full py-3 bg-white hover:bg-gray-100 text-black font-bold rounded-xl active:scale-95 transition-transform"
                         >
                             {t("I understand")}
                         </button>

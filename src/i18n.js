@@ -25,7 +25,7 @@ const resources = {
       "6 photos required: plate, chassis & 4 sides": "6 photos required: plate, chassis & 4 sides",
       "GPS location will be recorded": "GPS location will be recorded",
       "Securely submitted for assessment": "Securely submitted for assessment",
-      
+
       "Photo Tips – Do's": "Photo Tips – Do's",
       "Photo Tips – Don'ts": "Photo Tips – Don'ts",
       "Follow these guidelines for the best results.": "Follow these guidelines for the best results.",
@@ -62,12 +62,12 @@ const resources = {
       "Chassis Number": "Chassis Number",
       "Position the plate within the frame": "Position the plate within the frame",
       "Position the chassis number within the frame": "Position the chassis number within the frame",
-      
+
       "Front of Vehicle": "Front of Vehicle",
       "Rear of Vehicle": "Rear of Vehicle",
       "Left Side": "Left Side",
       "Right Side": "Right Side",
-      
+
       "Rotate to Landscape": "Rotate to Landscape",
       "For this photo, hold your phone horizontally": "For this photo, hold your phone horizontally",
 
@@ -123,7 +123,7 @@ const resources = {
       "Capture any additional damage or details": "Capture any additional damage or details",
       "Add More Photos": "Add More Photos",
       "Capture Additional Photo": "Capture Additional Photo",
-      
+
       // Windshield new
       "Windshield Claim": "Windshield Claim",
       "Windshield Damage Inspection": "Windshield Damage\nInspection",
@@ -178,7 +178,19 @@ const resources = {
       "front": "front",
       "rear": "rear",
       "left": "left",
-      "right": "right"
+      "right": "right",
+      "Front Side Capture Guide": "Front Side Capture Guide",
+      "Front Side Instructions": "Point your camera at the Front of the vehicle. Ensure the entire front profile (grille, headlights, and license plate) is fully visible and centered in the frame.",
+      "Rear Side Capture Guide": "Rear Side Capture Guide",
+      "Rear Side Instructions": "Point your camera at the Rear of the vehicle. Ensure the entire rear profile (taillights, rear bumper, and license plate) is fully visible and centered.",
+      "Left Side Capture Guide": "Left Side Capture Guide",
+      "Left Side Instructions": "Point your camera at the Left Side of the vehicle. Ensure the full left side profile, including both wheels and doors, is captured clearly.",
+      "Right Side Capture Guide": "Right Side Capture Guide",
+      "Right Side Instructions": "Point your camera at the Right Side of the vehicle. Ensure the full right side profile, including both wheels and doors, is captured clearly.",
+      "Show Guide": "Show Guide",
+      "Tap thumbnail to view guide": "Tap thumbnail to view guide",
+      "Side verified successfully! Click Next to proceed.": "Side verified successfully! Click Next to proceed.",
+      "Verification failed. Tap the thumbnail to review the guide.": "Verification failed. Tap the thumbnail to review the guide."
     }
   },
   ar: {
@@ -202,7 +214,7 @@ const resources = {
       "6 photos required: plate, chassis & 4 sides": "مطلوب 6 صور: اللوحة، الشاسيه، و4 جوانب",
       "GPS location will be recorded": "سيتم تسجيل موقع GPS",
       "Securely submitted for assessment": "مقدم بآمان للتقييم",
-      
+
       "Photo Tips – Do's": "نصائح الصور – ما يجب فعله",
       "Photo Tips – Don'ts": "نصائح الصور – ما لا يجب فعله",
       "Follow these guidelines for the best results.": "اتبع هذه الإرشادات للحصول على أفضل النتائج.",
@@ -239,12 +251,12 @@ const resources = {
       "Chassis Number": "رقم الشاسيه",
       "Position the plate within the frame": "ضع اللوحة داخل الإطار",
       "Position the chassis number within the frame": "ضع رقم الشاسيه داخل الإطار",
-      
+
       "Front of Vehicle": "مقدمة السيارة",
       "Rear of Vehicle": "مؤخرة السيارة",
       "Left Side": "الجانب الأيسر",
       "Right Side": "الجانب الأيمن",
-      
+
       "Rotate to Landscape": "التدوير للوضع الأفقي",
       "For this photo, hold your phone horizontally": "لهذه الصورة، احمل هاتفك بشكل أفقي",
 
@@ -355,7 +367,19 @@ const resources = {
       "front": "أمام",
       "rear": "خلف",
       "left": "يسار",
-      "right": "يمين"
+      "right": "يمين",
+      "Front Side Capture Guide": "دليل تصوير مقدمة السيارة",
+      "Front Side Instructions": "وجه الكاميرا إلى مقدمة المركبة. تأكد من ظهور الواجهة الأمامية بالكامل (الشبك، المصابيح، ولوحة السيارة) بوضوح وتوسيطها في الإطار.",
+      "Rear Side Capture Guide": "دليل تصوير مؤخرة السيارة",
+      "Rear Side Instructions": "وجه الكاميرا إلى مؤخرة المركبة. تأكد من ظهور الواجهة الخلفية بالكامل (المصابيح الخلفية، المصد، ولوحة السيارة) بوضوح وتوسيطها في الإطار.",
+      "Left Side Capture Guide": "دليل تصوير الجانب الأيسر",
+      "Left Side Instructions": "وجه الكاميرا إلى الجانب الأيسر للمركبة. تأكد من تصوير الجانب الأيسر بالكامل بوضوح، بما في ذلك العجلات الأمامية والخلفية والأبواب.",
+      "Right Side Capture Guide": "دليل تصوير الجانب الأيمن",
+      "Right Side Instructions": "وجه الكاميرا إلى الجانب الأيمن للمركبة. تأكد من تصوير الجانب الأيمن بالكامل بوضوح، بما في ذلك العجلات الأمامية والخلفية والأبواب.",
+      "Show Guide": "عرض الدليل",
+      "Tap thumbnail to view guide": "اضغط على الصورة المصغرة لعرض الدليل",
+      "Side verified successfully! Click Next to proceed.": "تم التحقق من الجانب بنجاح! اضغط على التالي للمتابعة.",
+      "Verification failed. Tap the thumbnail to review the guide.": "فشل التحقق. اضغط على الصورة المصغرة لمراجعة الدليل."
     }
   }
 };
@@ -367,7 +391,7 @@ i18n
     resources,
     fallbackLng: 'en',
     interpolation: {
-      escapeValue: false 
+      escapeValue: false
     }
   });
 

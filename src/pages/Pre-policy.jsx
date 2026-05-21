@@ -240,12 +240,58 @@ function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose,
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
     const [savingRotate, setSavingRotate] = useState(false);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const dragStart = useRef({ x: 0, y: 0 });
 
-    if (!imageUrl) return null;
+    useEffect(() => {
+        if (zoom <= 1) {
+            setPan({ x: 0, y: 0 });
+        }
+    }, [zoom]);
 
     const handleZoomIn = (e) => { e.stopPropagation(); setZoom(z => Math.min(z + 0.5, 5)); };
     const handleZoomOut = (e) => { e.stopPropagation(); setZoom(z => Math.max(z - 0.5, 0.5)); };
     const handleRotate = (e) => { e.stopPropagation(); setRotation(r => r + 90); };
+
+    const handleMouseDown = (e) => {
+        if (zoom <= 1) return;
+        e.preventDefault();
+        setIsDragging(true);
+        dragStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isDragging) return;
+        setPan({
+            x: e.clientX - dragStart.current.x,
+            y: e.clientY - dragStart.current.y
+        });
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const handleTouchStart = (e) => {
+        if (zoom <= 1) return;
+        setIsDragging(true);
+        const touch = e.touches[0];
+        dragStart.current = { x: touch.clientX - pan.x, y: touch.clientY - pan.y };
+    };
+
+    const handleTouchMove = (e) => {
+        if (!isDragging) return;
+        const touch = e.touches[0];
+        setPan({
+            x: touch.clientX - dragStart.current.x,
+            y: touch.clientY - dragStart.current.y
+        });
+    };
+
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+    };
 
     const handleSaveRotation = async (e) => {
         e.stopPropagation();
@@ -325,8 +371,22 @@ function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose,
                 <img
                     src={imageUrl}
                     alt={label || "Full screen"}
-                    className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg transition-transform duration-200"
-                    style={{ transform: `scale(${zoom}) rotate(${rotation}deg)` }}
+                    className="max-w-[95vw] max-h-[90vh] object-contain rounded-lg select-none"
+                    style={{
+                        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+                        cursor: zoom > 1 ? (isDragging ? "grabbing" : "grab") : "default",
+                        transition: isDragging ? "none" : "transform 0.2s ease-out",
+                        touchAction: zoom > 1 ? "none" : "auto",
+                        userSelect: "none",
+                    }}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onDragStart={(e) => e.preventDefault()}
                     onClick={(e) => e.stopPropagation()}
                 />
             </div>

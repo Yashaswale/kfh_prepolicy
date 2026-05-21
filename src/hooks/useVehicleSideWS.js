@@ -212,65 +212,70 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
         setStatus("connecting");
         const url = `wss://api.dezzex.ae/ws/car-side/${userId}/${uniqueId}/`;
         console.log("[WS] Connecting to", url);
-        const ws = new WebSocket(url);
+        try {
+            const ws = new WebSocket(url);
 
-        ws.onopen = () => {
-            console.log("[WS] Connected ✓");
-            setStatus("connected");
-        };
+            ws.onopen = () => {
+                console.log("[WS] Connected ✓");
+                setStatus("connected");
+            };
 
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                setBbox(data.bbox && Array.isArray(data.bbox) ? data.bbox : null);
-                setLastResponse(data);
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    setBbox(data.bbox && Array.isArray(data.bbox) ? data.bbox : null);
+                    setLastResponse(data);
 
-                const detectedSide = data.detected || currentSideRef.current;
-                setPendingDetectedSide(detectedSide);
+                    const detectedSide = data.detected || currentSideRef.current;
+                    setPendingDetectedSide(detectedSide);
 
-                const attemptKey = `step_${captureStepRef.current}`;
-                const attemptsForSide = attemptsRef.current[attemptKey] || 0;
+                    const attemptKey = `step_${captureStepRef.current}`;
+                    const attemptsForSide = attemptsRef.current[attemptKey] || 0;
 
-                const expectedSide = currentSideRef.current;
-                const detectedStr = typeof data.detected === "string" ? data.detected : "";
+                    const expectedSide = currentSideRef.current;
+                    const detectedStr = typeof data.detected === "string" ? data.detected : "";
 
-                // Success implies it's explicitly correct from the backend,
-                // or the detected side matches what we expect
-                const isSuccess =
-                    data.correct === true ||
-                    (detectedStr &&
-                        expectedSide &&
-                        detectedStr.toLowerCase() === expectedSide.toLowerCase());
+                    // Success implies it's explicitly correct from the backend,
+                    // or the detected side matches what we expect
+                    const isSuccess =
+                        data.correct === true ||
+                        (detectedStr &&
+                            expectedSide &&
+                            detectedStr.toLowerCase() === expectedSide.toLowerCase());
 
-                if (isSuccess) {
-                    setCaptureResult("success");
-                } else {
-                    setCaptureResult("failed");
+                    if (isSuccess) {
+                        setCaptureResult("success");
+                    } else {
+                        setCaptureResult("failed");
 
-                    // If the user has tried 3+ times for this side, auto-advance to keep flow moving
-                    if (attemptsForSide >= 3) {
-                        setTimeout(() => {
-                            if (advanceSideRef.current) advanceSideRef.current(true);
-                        }, 600);
+                        // If the user has tried 3+ times for this side, auto-advance to keep flow moving
+                        if (attemptsForSide >= 3) {
+                            setTimeout(() => {
+                                if (advanceSideRef.current) advanceSideRef.current(true);
+                            }, 600);
+                        }
                     }
+                } catch (err) {
+                    console.warn("[WS] Parse error:", err);
+                    setCaptureResult("failed");
                 }
-            } catch (err) {
-                console.warn("[WS] Parse error:", err);
-                setCaptureResult("failed");
-            }
-        };
+            };
 
-        ws.onerror = (err) => {
-            console.error("[WS] Error:", err);
+            ws.onerror = (err) => {
+                console.error("[WS] Error:", err);
+                setStatus("error");
+            };
+
+            ws.onclose = (event) => {
+                console.log("[WS] Closed:", event.code, event.reason);
+                if (statusRef.current !== "done") setStatus("idle");
+            };
+
+            wsRef.current = ws;
+        } catch (err) {
+            console.error("[WS] Connection creation failed:", err);
             setStatus("error");
-        };
-
-        ws.onclose = (event) => {
-            console.log("[WS] Closed:", event.code, event.reason);
-            if (statusRef.current !== "done") setStatus("idle");
-        };
-
-        wsRef.current = ws;
+        }
     }, [userId, uniqueId]);
 
     // ── Disconnect ─────────────────────────────────────────────────────────────
