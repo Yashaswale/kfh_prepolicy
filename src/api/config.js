@@ -5,6 +5,11 @@ export const ENDPOINTS = {
   register: '/users/register/',
   login: '/users/login/',
   refreshToken: '/users/token/refresh/',
+  listSupervisors: '/users/supervisors/',
+  listSubUsers: '/users/supervisors/{supervisor_id}/sub-users/',
+  createSubUser: '/users/sub-user/create/',
+  updateUser: '/users/users/{user_id}/',
+  deleteUser: '/users/users/{user_id}/',
 
   // Customers
   sendInspectionLink: '/customers/send-link/',
@@ -25,5 +30,8 @@ export const ENDPOINTS = {
   editWindshieldAiBase: '/customers/inspection/edit-windshield-ai',
   reassessDamageResult: '/customers/inspection/damage/reassess/',
   editCorrectIncorrectResult: '/customers/inspections/{inspection_id}/mark-result/',
+  markAsViewed: '/customers/inspection/{inspection_id}/mark-as-viewed/',
   rotateDamageMedia: '/customers/inspection-damage-media/{media_id}/rotate/',
+  supervisorAccountsSummary: '/customers/inspection/admin/supervisor-accounts-summary/',
+  subUsersSummary: '/customers/inspection/supervisors/{supervisor_id}/sub-users-summary/',
 };

@@ -20,11 +20,18 @@ const SIDE_LABELS = {
     right: "Right Side",
 };
 
-export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
+export default function useVehicleSideWS({
+    userId,
+    uniqueId,
+    onAllCaptured,
+    initialCapturedSides = {},
+    initialStep = 0,
+    targetSideId = null
+}) {
     // ── State ──────────────────────────────────────────────────────────────────
     const [bbox, setBbox] = useState(null);
     const [lastResponse, setLastResponse] = useState(null);
-    const [capturedSides, setCapturedSides] = useState({});
+    const [capturedSides, setCapturedSides] = useState(initialCapturedSides);
     const [status, setStatus] = useState("idle");
     // "idle" | "verifying" | "success" | "failed"
     const [captureResult, setCaptureResult] = useState("idle");
@@ -33,7 +40,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     // The side the server has detected for the pending photo
     const [, setPendingDetectedSide] = useState(null);
     // Track capture step: 0=front,1=rear,2=any,3=any
-    const [captureStep, setCaptureStep] = useState(0);
+    const [captureStep, setCaptureStep] = useState(initialStep);
     const captureStepRef = useRef(captureStep);
     // Track how many attempts per step (for forced progression after repeated failures)
     const [attempts, setAttempts] = useState({});
@@ -51,6 +58,7 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
     const onAllCapturedRef = useRef(onAllCaptured);
     const statusRef = useRef("idle");
     const advanceSideRef = useRef(null);
+    const fakeImgDetectedRef = useRef(false);
 
     const currentSideIndex = captureStep;
     const currentSide = SIDE_ORDER[currentSideIndex] || null;
@@ -167,6 +175,24 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
             return next;
         });
 
+        if (targetSideId) {
+            setStatus("done");
+            if (wsRef.current) {
+                wsRef.current.onclose = null;
+                wsRef.current.close();
+                wsRef.current = null;
+            }
+            const cb = onAllCapturedRef.current;
+            if (cb) {
+                cb(SIDE_ORDER.map((s) => ({
+                    sideId: s,
+                    label: SIDE_LABELS[s],
+                    dataUrl: updated[s] || null,
+                })), fakeImgDetectedRef.current);
+            }
+            return;
+        }
+
         const nextStep = captureStepRef.current + 1;
         setCaptureStep(nextStep);
         captureStepRef.current = nextStep; // Keep ref immediately updated too
@@ -184,10 +210,10 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                     sideId: s,
                     label: SIDE_LABELS[s],
                     dataUrl: updated[s],
-                })));
+                })), fakeImgDetectedRef.current);
             }
         }
-    }, []);
+    }, [targetSideId]);
 
     useEffect(() => {
         advanceSideRef.current = advanceSide;
@@ -243,8 +269,17 @@ export default function useVehicleSideWS({ userId, uniqueId, onAllCaptured }) {
                             expectedSide &&
                             detectedStr.toLowerCase() === expectedSide.toLowerCase());
 
+                    const isRealImage = data.real_image !== false;
+                    if (!isRealImage) {
+                        fakeImgDetectedRef.current = true;
+                    }
+
                     if (isSuccess) {
-                        setCaptureResult("success");
+                        if (isRealImage) {
+                            setCaptureResult("success");
+                        } else {
+                            setCaptureResult("fake_image_detected");
+                        }
                     } else {
                         setCaptureResult("failed");
 

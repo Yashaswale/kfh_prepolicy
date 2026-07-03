@@ -56,7 +56,15 @@ const SIDE_GUIDE_TEXTS = {
  *   3. WS validates → "Photo Captured ✓ / Next" or "Try Again".
  *   4. Repeats for all 4 sides.
  */
-export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, onBack }) {
+export default function VehicleSideCapture({
+    userId,
+    uniqueId,
+    initialCapturedSides = {},
+    initialStep = 0,
+    targetSideId = null,
+    onAllCaptured,
+    onBack
+}) {
     const { t, i18n } = useTranslation();
     const streamRef = useRef(null);
     const [streamReady, setStreamReady] = useState(false);
@@ -65,6 +73,8 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     const [capturedFlash, setCapturedFlash] = useState(false);
     const [showLandscapeModal, setShowLandscapeModal] = useState(true);
     const [showInstructionModal, setShowInstructionModal] = useState(false);
+    const [showDetectionFailedModal, setShowDetectionFailedModal] = useState(false);
+    const [showFakeImageModal, setShowFakeImageModal] = useState(false);
     const [autoShownSides, setAutoShownSides] = useState({});
 
     const {
@@ -86,6 +96,9 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
     } = useVehicleSideWS({
         userId,
         uniqueId,
+        initialCapturedSides,
+        initialStep,
+        targetSideId,
         onAllCaptured,
     });
 
@@ -115,18 +128,17 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
         }
     }, [currentSide, showLandscapeModal, streamReady, autoShownSides]);
 
-    // Auto-show instruction modal when side verification fails
+    // Show detection failed modal when side verification fails
     useEffect(() => {
         if (captureResult === "failed") {
-            setShowInstructionModal(true);
+            setShowDetectionFailedModal(true);
+        } else if (captureResult === "fake_image_detected") {
+            setShowFakeImageModal(true);
         }
     }, [captureResult]);
 
     const handleCloseInstructionModal = () => {
         setShowInstructionModal(false);
-        if (captureResult === "failed") {
-            retryCapture();
-        }
     };
 
     // Acquire camera stream (retry-friendly; avoids unstable ref-as-dependency bugs on mobile)
@@ -442,74 +454,86 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                         )}
 
                         {captureResult === "failed" && (
-                            <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                                <XCircle className="w-5 h-5 text-red-400 shrink-0" />
-                                <div className="flex-1">
-                                    <span className="text-red-400 text-sm font-semibold block">{t("Wrong side detected")}</span>
-                                    <span className="text-white/50 text-xs">
-                                        {lastResponse?.detected
-                                            ? `${t("Got")} "${t(lastResponse.detected)}", ${t("expected")} "${t(sideLabels[currentSide])}"`
-                                            : t("Please try again")}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
+                             <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                                 <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                                 <div className="flex-1">
+                                     <span className="text-red-400 text-sm font-semibold block">{t("Wrong side detected")}</span>
+                                     <span className="text-white/50 text-xs">
+                                         {lastResponse?.detected
+                                             ? `${t("Got")} "${t(lastResponse.detected)}", ${t("expected")} "${t(sideLabels[currentSide])}"`
+                                             : t("Please try again")}
+                                     </span>
+                                 </div>
+                             </div>
+                         )}
 
-                        {/* Instruction text when idle */}
-                        {captureResult === "idle" && (
-                            <p className="text-white/60 text-xs mb-4 leading-relaxed">
-                                {t("Point your camera at the")} <strong className="text-white/90">{t(sideLabels[currentSide])}</strong> {t("of the vehicle and tap")} <strong className="text-white/90">{t("Capture")}</strong>.{" "}
-                                <span 
-                                    className="text-green-400 hover:text-green-300 font-semibold cursor-pointer underline whitespace-nowrap" 
-                                    onClick={() => setShowInstructionModal(true)}
-                                >
-                                    {t("Tap thumbnail to view guide")}
-                                </span>
-                            </p>
-                        )}
-
-                        {/* Action buttons */}
-                        <div className="flex gap-3">
-                            {/* Capture / Try Again button */}
-                            {(captureResult === "idle" || captureResult === "failed") && (
-                                <button
-                                    onClick={captureResult === "failed" ? retryCapture : captureAndVerify}
-                                    disabled={!isConnected}
-                                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${!isConnected
-                                        ? "bg-gray-600 text-gray-400 cursor-not-allowed"
-                                        : captureResult === "failed"
-                                            ? "bg-orange-500 hover:bg-orange-600 text-white pulse-btn"
-                                            : "bg-white text-black hover:bg-gray-100 pulse-btn"
-                                        }`}
-                                >
-                                    {captureResult === "failed" ? (
-                                        <><RotateCcw className="w-4 h-4 mx-1" /> {t("Click Again")}</>
-                                    ) : (
-                                        <><Camera className="w-4 h-4 mx-1" /> {t("Capture")}</>
-                                    )}
-                                </button>
-                            )}
-
-                            {/* Verifying state — disabled button */}
-                            {captureResult === "verifying" && (
-                                <button disabled className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-gray-700 text-gray-400 cursor-not-allowed">
-                                    <Loader2 className="w-4 h-4 animate-spin mx-1" /> {t("Verifying…")}
-                                </button>
-                            )}
-
-                            {/* Success state — Next button */}
-                            {captureResult === "success" && (
-                                <button
-                                    onClick={acceptAndNext}
-                                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all pulse-btn"
-                                >
-                                    {currentSideIndex + 1 >= sideOrder.length ? (
-                                        <><CheckCircle className="w-4 h-4 mx-1" /> {t("Finish")}</>
-                                    ) : (
-                                        <><ChevronRight className="w-4 h-4 mx-1" /> {t("Next")}</>
-                                    )}
-                                </button>
-                            )}
+                         {captureResult === "fake_image_detected" && (
+                             <div className="flex items-center gap-3 mb-4 py-3 px-4 rounded-xl" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                                 <XCircle className="w-5 h-5 text-red-400 shrink-0" />
+                                 <div className="flex-1">
+                                     <span className="text-red-400 text-sm font-semibold block">{t("Fake image detected")}</span>
+                                     <span className="text-white/50 text-xs">
+                                         {t("Please take a picture of a real car. Do not take pictures from any laptop or other devices.")}
+                                     </span>
+                                 </div>
+                             </div>
+                         )}
+ 
+                         {/* Instruction text when idle */}
+                         {captureResult === "idle" && (
+                             <p className="text-white/60 text-xs mb-4 leading-relaxed">
+                                 {t("Point your camera at the")} <strong className="text-white/90">{t(sideLabels[currentSide])}</strong> {t("of the vehicle and tap")} <strong className="text-white/90">{t("Capture")}</strong>.{" "}
+                                 <span 
+                                     className="text-green-400 hover:text-green-300 font-semibold cursor-pointer underline whitespace-nowrap" 
+                                     onClick={() => setShowInstructionModal(true)}
+                                 >
+                                     {t("Tap thumbnail to view guide")}
+                                 </span>
+                             </p>
+                         )}
+ 
+                         {/* Action buttons */}
+                         <div className="flex gap-3">
+                             {/* Capture / Try Again button */}
+                             {(captureResult === "idle" || captureResult === "failed" || captureResult === "fake_image_detected") && (
+                                 <button
+                                     onClick={captureResult === "failed" || captureResult === "fake_image_detected" ? retryCapture : captureAndVerify}
+                                     disabled={!isConnected}
+                                     className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${!isConnected
+                                         ? "bg-gray-600 text-gray-400 cursor-not-allowed"
+                                         : (captureResult === "failed" || captureResult === "fake_image_detected")
+                                             ? "bg-orange-500 hover:bg-orange-600 text-white pulse-btn"
+                                             : "bg-white text-black hover:bg-gray-100 pulse-btn"
+                                         }`}
+                                 >
+                                     {captureResult === "failed" || captureResult === "fake_image_detected" ? (
+                                         <><RotateCcw className="w-4 h-4 mx-1" /> {t("Click Again")}</>
+                                     ) : (
+                                         <><Camera className="w-4 h-4 mx-1" /> {t("Capture")}</>
+                                     )}
+                                 </button>
+                             )}
+ 
+                             {/* Verifying state — disabled button */}
+                             {captureResult === "verifying" && (
+                                 <button disabled className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-gray-700 text-gray-400 cursor-not-allowed">
+                                     <Loader2 className="w-4 h-4 animate-spin mx-1" /> {t("Verifying…")}
+                                 </button>
+                             )}
+ 
+                             {/* Success state — Next button */}
+                             {captureResult === "success" && (
+                                 <button
+                                     onClick={acceptAndNext}
+                                     className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all pulse-btn"
+                                 >
+                                     {currentSideIndex + 1 >= sideOrder.length ? (
+                                         <><CheckCircle className="w-4 h-4 mx-1" /> {t("Finish")}</>
+                                     ) : (
+                                         <><ChevronRight className="w-4 h-4 mx-1" /> {t("Next")}</>
+                                     )}
+                                 </button>
+                             )}
                         </div>
                     </div>
                 ) : isComplete ? (
@@ -592,6 +616,56 @@ export default function VehicleSideCapture({ userId, uniqueId, onAllCaptured, on
                             className="w-full py-3 bg-white hover:bg-gray-100 text-black font-bold rounded-xl active:scale-95 transition-transform"
                         >
                             {t("I understand")}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Detection Failed Modal */}
+            {showDetectionFailedModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xs" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom, 0px))" }}>
+                    <div className="bg-gray-900 border border-white/20 p-6 rounded-2xl w-full max-w-sm text-center fade-up shadow-2xl">
+                        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                            <AlertCircle className="w-8 h-8 text-red-500" />
+                        </div>
+                        <h3 className="text-xl font-syne font-bold text-white mb-2">{t("Side Not Detected")}</h3>
+                        <p className="text-white/70 text-sm mb-6 leading-relaxed">
+                            {t("Please try again. Make sure you align the vehicle side correctly.")}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowDetectionFailedModal(false);
+                                retryCapture();
+                            }}
+                            className="w-full py-3 bg-white hover:bg-gray-100 text-black font-bold rounded-xl active:scale-95 transition-transform"
+                        >
+                            {t("Try Again")}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Fake Image Modal */}
+            {showFakeImageModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xs" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom, 0px))" }}>
+                    <div className="bg-gray-900 border border-white/20 p-6 rounded-2xl w-full max-w-sm text-center fade-up shadow-2xl">
+                        <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                            <AlertCircle className="w-8 h-8 text-red-500" />
+                        </div>
+                        <h3 className="text-xl font-syne font-bold text-white mb-2">{t("Real Car Required")}</h3>
+                        <p className="text-white/70 text-sm mb-6 leading-relaxed">
+                            {t("Please take a picture of a real car. Do not take pictures from any laptop or other devices.")}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowFakeImageModal(false);
+                                retryCapture();
+                            }}
+                            className="w-full py-3 bg-white hover:bg-gray-100 text-black font-bold rounded-xl active:scale-95 transition-transform"
+                        >
+                            {t("Try Again")}
                         </button>
                     </div>
                 </div>

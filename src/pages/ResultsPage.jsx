@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getInspectionOcr, getDamageResults, getWindshieldResults } from "../api";
+import { getInspectionOcr, getDamageResults, getWindshieldResults, markInspectionAsViewed } from "../api";
 import PrePolicyAssessmentResult from "./Pre-policy";
 import WindShieldAssessmentResult from "./WindsheildClaim";
 
@@ -51,6 +51,13 @@ export default function ResultsPage() {
          setTab("pre");
       }
 
+      // Mark as viewed automatically when retrieved successfully
+      try {
+        await markInspectionAsViewed(id);
+      } catch (err) {
+        console.error("Failed to mark inspection as viewed", err);
+      }
+
     } catch (err) {
       setError(err.message || "Failed to load results");
     } finally {
@@ -99,7 +106,8 @@ export default function ResultsPage() {
     name: "—",
     email: "—",
     policy: "—",
-    status: "—"
+    status: "—",
+    location: "—"
   };
 
   if (tab === "wind") {

@@ -1,8 +1,15 @@
 import { useState } from "react";
 import { sendInspectionLink } from "../api";
+import { getUser } from "../utils/auth";
 
 const SendLinkModal = ({ onClose }) => {
-  const [type, setType] = useState("vehicle");
+  const [type, setType] = useState(() => {
+    const currentUser = getUser();
+    if (currentUser?.type === "claims_broad_access" || currentUser?.type === "claims_limited_access") {
+      return "motor";
+    }
+    return "vehicle";
+  });
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -54,11 +61,22 @@ const SendLinkModal = ({ onClose }) => {
     }
   };
 
+  const currentUser = getUser();
   const types = [
     { id: "vehicle", label: "Vehicle Inspection" },
     { id: "motor", label: "Motor Claim" },
     { id: "windshield", label: "Wind Shield Claim" },
-  ];
+  ].filter((opt) => {
+    if (!currentUser) return true;
+    if (currentUser.type === "supervisor") return true;
+    if (currentUser.type === "pre_policy_broad_access" || currentUser.type === "pre_policy_limited_access") {
+      return opt.id === "vehicle";
+    }
+    if (currentUser.type === "claims_broad_access" || currentUser.type === "claims_limited_access") {
+      return opt.id === "motor" || opt.id === "windshield";
+    }
+    return true;
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

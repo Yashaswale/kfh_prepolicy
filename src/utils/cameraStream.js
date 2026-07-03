@@ -54,6 +54,36 @@ export function requestGeolocationOnce(options = {}) {
   });
 }
 
+export function getGeolocationCoordinates(options = {}) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ ok: false, error: "Not supported" });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          ok: true,
+          coords: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          }
+        });
+      },
+      (err) => {
+        resolve({ ok: false, error: err.message });
+      },
+      {
+        timeout: 10000,
+        maximumAge: 0,
+        enableHighAccuracy: true,
+        ...options,
+      }
+    );
+  });
+}
+
 /** i18n translation key (same string in en/ar resources) */
 export function cameraErrorToTranslationKey(err) {
   if (!err) return "Could not open the camera. Please try again.";

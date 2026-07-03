@@ -4,8 +4,9 @@ import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
 import PrePolicyAssessmentResult from "../pages/Pre-policy";
 import WindShieldAssessmentResult from "../pages/WindsheildClaim";
-import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults, regenerateInspectionLink } from "../api";
-import { clearAuthData } from "../utils/auth";
+import { listInspections, getInspectionOcr, getDamageResults, getWindshieldResults, regenerateInspectionLink, markInspectionAsViewed } from "../api";
+import { clearAuthData, getUser } from "../utils/auth";
+import UserAccessControl from "./UserAccessControl";
 
 // ---- Icons ----
 const KFHLogo = () => (
@@ -226,6 +227,23 @@ const STATUS_LABEL_TO_CODE = {
   Regenerated: "regenerated",
 };
 
+const CREATOR_TYPE_FILTER_OPTIONS = [
+  "All User Types",
+  "Supervisor",
+  "Pre-Policy Broad Access",
+  "Pre-Policy Limited Access",
+  "Claims Broad Access",
+  "Claims Limited Access",
+];
+
+const CREATOR_TYPE_LABEL_TO_CODE = {
+  "Supervisor": "supervisor",
+  "Pre-Policy Broad Access": "pre_policy_broad_access",
+  "Pre-Policy Limited Access": "pre_policy_limited_access",
+  "Claims Broad Access": "claims_broad_access",
+  "Claims Limited Access": "claims_limited_access",
+};
+
 const damageColors = {
   "Major Damage": "bg-red-500",
   "Medium Damage": "bg-orange-500",
@@ -259,16 +277,54 @@ const TAB_TYPE_MAP = {
   wind: "windshield",
 };
 
+const renderReviewStatus = (status) => {
+  if (status === true || status === "accepted") {
+    return <span className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit">Accepted</span>;
+  }
+  if (status === false || status === "rejected") {
+    return <span className="text-red-600 font-semibold text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">Rejected</span>;
+  }
+  if (status === "viewed") {
+    return <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">Viewed</span>;
+  }
+  if (status === "pending") {
+    return <span className="text-amber-600 font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">Pending</span>;
+  }
+  return <span className="text-gray-400 text-xs">—</span>;
+};
+
 // ---- Main Component ----
 export default function App() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem("dash_activeTab") || "pre");
+  const currentUser = getUser();
+  const isSubUser = currentUser?.type !== "supervisor" && currentUser?.type !== "supervisor_admin";
+
+  // Filter tabs based on user type/role
+  const allowedTabs = TABS.filter(tab => {
+    if (!currentUser) return true;
+    if (currentUser.type === "supervisor") return true;
+    if (currentUser.type === "pre_policy_broad_access" || currentUser.type === "pre_policy_limited_access") {
+      return tab.key === "pre";
+    }
+    if (currentUser.type === "claims_broad_access" || currentUser.type === "claims_limited_access") {
+      return tab.key === "motor" || tab.key === "wind";
+    }
+    return true;
+  });
+
+  const [activeTab, setActiveTab] = useState(() => {
+    const saved = sessionStorage.getItem("dash_activeTab");
+    if (saved && allowedTabs.some(t => t.key === saved)) {
+      return saved;
+    }
+    return allowedTabs[0]?.key || "pre";
+  });
   const [activeNav, setActiveNav] = useState(() => sessionStorage.getItem("dash_activeNav") || "dashboard");
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState([]);
   const [allChecked, setAllChecked] = useState(true);
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [correctResultFilter, setCorrectResultFilter] = useState("All");
+  const [correctResultFilter, setCorrectResultFilter] = useState("All Review Status");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("Newest First");
   const [dateFrom, setDateFrom] = useState("");
@@ -284,6 +340,23 @@ export default function App() {
   const [showLogout, setShowLogout] = useState(false);
   const [lastViewedId, setLastViewedId] = useState(() => sessionStorage.getItem("dash_lastViewedId") || null);
   const logoutRef = useRef(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [creatorTypeFilter, setCreatorTypeFilter] = useState("All User Types");
+
+  // Intercept browser back button to prevent accidental logouts
+  useEffect(() => {
+    window.history.pushState(null, null, window.location.pathname);
+
+    const handlePopState = (e) => {
+      window.history.pushState(null, null, window.location.pathname);
+      setShowLogoutConfirm(true);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   // Persist activeTab and activeNav to sessionStorage
   useEffect(() => { sessionStorage.setItem("dash_activeTab", activeTab); }, [activeTab]);
@@ -311,6 +384,7 @@ export default function App() {
     setSearch("");
     setDebouncedSearch("");
     setStatusFilter("All Status");
+    setCreatorTypeFilter("All User Types");
     setSortBy("Newest First");
     setDateFrom("");
     setDateTo("");
@@ -322,6 +396,7 @@ export default function App() {
     setSearch("");
     setDebouncedSearch("");
     setStatusFilter("All Status");
+    setCreatorTypeFilter("All User Types");
     setSortBy("Newest First");
     setDateFrom("");
     setDateTo("");
@@ -349,6 +424,8 @@ export default function App() {
         statusFilter === "All Status" ? undefined : STATUS_LABEL_TO_CODE[statusFilter];
       const typeCode = TAB_TYPE_MAP[activeTab];
       const sortByParam = sortBy === "Oldest First" ? "asc" : "des";
+      const creatorTypeCode =
+        creatorTypeFilter === "All User Types" ? undefined : CREATOR_TYPE_LABEL_TO_CODE[creatorTypeFilter];
 
       const query = {
         status: statusCode,
@@ -358,8 +435,8 @@ export default function App() {
         end_date: dateTo || undefined,
         sort_by: sortByParam,
         page: currentPage,
-        ...(correctResultFilter === "Correct" ? { correct_result: true } : {}),
-        ...(correctResultFilter === "Incorrect" ? { correct_result: false } : {}),
+        user_type: creatorTypeCode,
+        ...(correctResultFilter !== "All Review Status" && correctResultFilter !== "All" ? { correct_result: correctResultFilter.toLowerCase() } : {}),
       };
 
       try {
@@ -416,8 +493,12 @@ export default function App() {
               damage: item.damage_level ?? "",
               status: item.status ?? "",
               link: item.link ?? "",
-              correctResult: item.correct_result,
+              correctResult: item.review_status || item.correct_result,
               additionalNotes: item.additional_notes,
+              location: item.location ?? "—",
+              createdBy: item.created_by_name ?? "—",
+              fakeImgDetection: item.fake_img_detection ?? false,
+              serialNumber: item.serial_number ?? (index + 1),
             };
           });
 
@@ -441,7 +522,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch, sortBy, currentPage, correctResultFilter]);
+  }, [activeTab, statusFilter, dateFrom, dateTo, debouncedSearch, sortBy, currentPage, correctResultFilter, creatorTypeFilter]);
 
   const toggleAll = () => {
     const next = !allChecked;
@@ -458,10 +539,16 @@ export default function App() {
 
   const openOcrForRow = async (row) => {
     if (!row?.id) return;
-    
+
     const rowIdStr = row.id.toString();
     setLastViewedId(rowIdStr);
     sessionStorage.setItem("dash_lastViewedId", rowIdStr);
+
+    try {
+      await markInspectionAsViewed(row.id);
+    } catch (err) {
+      console.error("Failed to mark inspection as viewed", err);
+    }
 
     // Show the detail page immediately with loading state
     setDetailView({ row, ocrData: null, damageData: null, windshieldData: null, ocrLoading: true, ocrError: "", tab: activeTab });
@@ -541,13 +628,16 @@ export default function App() {
             <svg className="w-7 h-7 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
             </svg>
-            <span className="font-medium">Admin</span>
+            <span className="font-medium">{currentUser?.name || "Admin"}</span>
             <ChevronDown />
           </div>
           {showLogout && (
             <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
               <button
-                onClick={handleLogout}
+                onClick={() => {
+                  setShowLogout(false);
+                  setShowLogoutConfirm(true);
+                }}
                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition font-medium rounded-lg"
               >
                 Logout
@@ -577,6 +667,17 @@ export default function App() {
           </svg>
           Transaction
         </button>
+        {(currentUser?.type === "supervisor" || currentUser?.type === "supervisor_admin") && (
+          <button
+            onClick={() => switchNav("userControl")}
+            className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition ${activeNav === "userControl" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            User access control
+          </button>
+        )}
       </div>
 
       {/* ── Transaction Page ── */}
@@ -584,13 +685,20 @@ export default function App() {
         <Transactions />
       )}
 
+      {/* ── User Access Control Page ── */}
+      {activeNav === "userControl" && (
+        <main className="p-5">
+          <UserAccessControl />
+        </main>
+      )}
+
       {/* ── Main Content ── */}
-      {activeNav !== "transaction" && <main className="p-5">
+      {activeNav !== "transaction" && activeNav !== "userControl" && <main className="p-5">
 
         {/* Tabs + Send Button */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
-            {TABS.map(tab => (
+            {allowedTabs.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => switchTab(tab.key)}
@@ -664,9 +772,19 @@ export default function App() {
             <SelectDropdown
               value={correctResultFilter}
               onChange={(val) => { setCorrectResultFilter(val); setCurrentPage(1); }}
-              options={["All", "Correct", "Incorrect"]}
-              minWidth="130px"
+              options={["All Review Status", "Pending", "Viewed", "Accepted", "Rejected"]}
+              minWidth="150px"
             />
+
+            {/* Creator User Type Filter */}
+            {!isSubUser && (
+              <SelectDropdown
+                value={creatorTypeFilter}
+                onChange={(val) => { setCreatorTypeFilter(val); setCurrentPage(1); }}
+                options={CREATOR_TYPE_FILTER_OPTIONS}
+                minWidth="170px"
+              />
+            )}
 
             {/* Sort By */}
             <div className="flex items-center gap-2 ml-auto text-sm">
@@ -700,7 +818,7 @@ export default function App() {
                       className="w-4 h-4 accent-green-500"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-10">ID</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-10">Sr No</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">
                     <span className="flex items-center gap-1">
                       Customer Name
@@ -711,80 +829,83 @@ export default function App() {
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Created By</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Updated At</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Damage Level</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[140px] min-w-[140px] max-w-[140px] shrink-0">Damage Level</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">All Status</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Result Correct?</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Links</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Review Status</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Link</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row, i) => {
                   const isLastViewed = lastViewedId === row.id?.toString();
                   return (
-                  <tr key={row.id} className={`border-b border-gray-100 transition ${isLastViewed ? 'bg-blue-50/80 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selected[i]}
-                        onChange={() => toggleRow(i)}
-                        className="w-4 h-4 accent-green-500"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{row.id}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{row.email}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.policy}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.date}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.time}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.updatedAt}</td>
-                    <td className="px-4 py-3">
-                      {row.damage ? (
-                        <span className={`${damageColors[row.damage] || "bg-gray-400"} text-white text-xs font-semibold px-3 py-1 rounded`}>
-                          {row.damage}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const meta = STATUS_META[row.status];
-                        if (!meta) {
+                    <tr key={row.id} className={`border-b border-gray-100 transition ${isLastViewed ? 'bg-blue-50/80 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'}`}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selected[i]}
+                          onChange={() => toggleRow(i)}
+                          className="w-4 h-4 accent-green-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{row.serialNumber}</td>
+                      <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
+                      <td className="px-4 py-3 text-gray-500">{row.email}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.policy}</td>
+                      <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.date}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.time}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {row.updatedAt && row.updatedAt !== "—" ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium whitespace-nowrap">{row.updatedAt.split(" ").slice(0, 3).join(" ")}</span>
+                            <span className="text-gray-400 text-xs mt-0.5 whitespace-nowrap">{row.updatedAt.split(" ").slice(3).join(" ")}</span>
+                          </div>
+                        ) : (
+                          <span>—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 w-[140px] min-w-[140px] max-w-[140px] shrink-0">
+                        {row.damage ? (
+                          <span className={`${damageColors[row.damage] || "bg-gray-400"} text-white text-xs font-semibold px-3 py-1 rounded`}>
+                            {row.damage}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const meta = STATUS_META[row.status];
+                          if (!meta) {
+                            return (
+                              <span className="bg-gray-400 text-white text-xs font-semibold px-3 py-1 rounded">
+                                {row.status || "Unknown"}
+                              </span>
+                            );
+                          }
                           return (
-                            <span className="bg-gray-400 text-white text-xs font-semibold px-3 py-1 rounded">
-                              {row.status || "Unknown"}
+                            <span className={`${meta.color} text-white text-xs font-semibold px-3 py-1 rounded`}>
+                              {meta.label}
                             </span>
                           );
-                        }
-                        return (
-                          <span className={`${meta.color} text-white text-xs font-semibold px-3 py-1 rounded`}>
-                            {meta.label}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
-                        {row.correctResult === true ? (
-                          <span className="text-green-600 font-semibold text-xs">Correct</span>
-                        ) : row.correctResult === false ? (
-                          <span className="text-red-600 font-semibold text-xs">Incorrect</span>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
-                        {row.additionalNotes && (
-                          <span className="text-gray-500 text-xs max-w-[120px] truncate" title={row.additionalNotes}>
-                            {row.additionalNotes}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-2">
-                        {/* Customer Link */}
+                        })()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col gap-1">
+                          {renderReviewStatus(row.correctResult)}
+                          {row.additionalNotes && (
+                            <span className="text-gray-500 text-xs max-w-[120px] truncate" title={row.additionalNotes}>
+                              {row.additionalNotes}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {row.status === "expired" ? (
                             <button
@@ -809,34 +930,19 @@ export default function App() {
                             </button>
                           ) : row.link ? (
                             <>
-                              <span className="text-blue-500 text-xs truncate max-w-[130px]" title={row.link}>Cust: {row.link}</span>
+                              <span className="text-blue-500 text-xs truncate max-w-[130px]" title={row.link}>
+                                {row.link}
+                              </span>
                               <button
-                                onClick={() => { navigator.clipboard.writeText(row.link); alert("Customer link copied!"); }}
+                                onClick={() => { navigator.clipboard.writeText(row.link); alert("Link copied!"); }}
                                 className="text-gray-400 hover:text-gray-600 transition"
-                                title="Copy Customer Link"
+                                title="Copy Link"
                               >
                                 <CopyIcon />
                               </button>
                             </>
                           ) : null}
-                        </div>
 
-                        {/* Result Link */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-green-600 text-xs truncate max-w-[130px]" title={`${window.location.origin}/results/${row.id}`}>
-                            Res: /results/{row.id}
-                          </span>
-                          <button
-                            onClick={() => {
-                              const resultLink = `${window.location.origin}/results/${row.id}`;
-                              navigator.clipboard.writeText(resultLink);
-                              alert("Result link copied: " + resultLink);
-                            }}
-                            className="text-gray-400 hover:text-green-600 transition"
-                            title="Copy Result Link"
-                          >
-                            <CopyIcon />
-                          </button>
                           <button
                             onClick={() => openOcrForRow(row)}
                             className="text-gray-400 hover:text-gray-700 transition ml-1"
@@ -845,10 +951,10 @@ export default function App() {
                             <EyeIcon />
                           </button>
                         </div>
-                      </div>
-                    </td>
-                  </tr>
-                )})}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -900,6 +1006,44 @@ export default function App() {
 
       {/* ── Send Link Modal ── */}
       {showSendLink && <SendLinkModal onClose={() => setShowSendLink(false)} />}
+
+      {/* ── Logout Confirmation Modal ── */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded border border-gray-150 w-full max-w-sm overflow-hidden p-6 text-center animate-fade-in">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-gray-800 mb-2">Confirm Logout</h3>
+            <p className="text-gray-500 text-xs leading-relaxed mb-6">
+              Are you sure you want to log out of your session? Any unsaved administrative views will be closed.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                }}
+                className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded hover:bg-gray-50 text-xs transition"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  handleLogout();
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded text-xs transition shadow-xs"
+              >
+                Yes, Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>

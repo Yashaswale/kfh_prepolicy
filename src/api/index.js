@@ -213,3 +213,97 @@ export function rotateDamageMedia(mediaId, payload) {
     body: payload,
   });
 }
+
+// User Access Control APIs
+export function listSupervisors() {
+  return apiRequest(ENDPOINTS.listSupervisors, { method: 'GET' });
+}
+
+export function listSubUsers(supervisorId) {
+  if (!supervisorId) {
+    return Promise.reject(new Error('Supervisor id is required to list sub-users'));
+  }
+  const path = ENDPOINTS.listSubUsers.replace('{supervisor_id}', supervisorId);
+  return apiRequest(path, { method: 'GET' });
+}
+
+export function createSubUser(payload) {
+  return apiRequest(ENDPOINTS.createSubUser, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export function updateUser(userId, payload) {
+  if (!userId) {
+    return Promise.reject(new Error('User id is required to update user'));
+  }
+  const path = ENDPOINTS.updateUser.replace('{user_id}', userId);
+  return apiRequest(path, {
+    method: 'PATCH',
+    body: payload,
+  });
+}
+
+export function deleteUser(userId) {
+  if (!userId) {
+    return Promise.reject(new Error('User id is required to delete user'));
+  }
+  const path = ENDPOINTS.deleteUser.replace('{user_id}', userId);
+  return apiRequest(path, {
+    method: 'DELETE',
+  });
+}
+
+export function registerSupervisor(payload) {
+  // Call register with auth: true so only admin can create supervisors
+  return apiRequest(ENDPOINTS.register, {
+    method: 'POST',
+    body: payload,
+    auth: true,
+  });
+}
+
+export function getSupervisorAccountsSummary(query = {}) {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.append(key, value);
+    }
+  });
+  const qs = params.toString();
+  const path = qs ? `${ENDPOINTS.supervisorAccountsSummary}?${qs}` : ENDPOINTS.supervisorAccountsSummary;
+  return apiRequest(path, { method: 'GET' });
+}
+
+export function getSubUsersSummary(supervisorId, query = {}) {
+  if (!supervisorId) {
+    return Promise.reject(new Error('Supervisor id is required to fetch sub-users summary'));
+  }
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      params.append(key, value);
+    }
+  });
+  const qs = params.toString();
+  let path = ENDPOINTS.subUsersSummary.replace('{supervisor_id}', supervisorId);
+  if (qs) {
+    path = `${path}?${qs}`;
+  }
+  return apiRequest(path, { method: 'GET' });
+}
+
+export function markInspectionAsViewed(inspectionId) {
+  if (!inspectionId) {
+    return Promise.reject(new Error('Inspection id is required'));
+  }
+  let path = ENDPOINTS.markAsViewed.replace('{inspection_id}', inspectionId);
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+  return apiRequest(path, {
+    method: 'PATCH',
+  });
+}
+

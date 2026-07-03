@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Camera, CheckCircle, RotateCcw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2, Trash2, Wind } from "lucide-react";
+import { Camera, CheckCircle, RotateCcw, RotateCw, ChevronRight, MapPin, Shield, AlertCircle, Check, X, ArrowLeft, Loader2, Trash2, Wind } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { uploadWindshieldImages, startWindshieldAssessment, uploadInspectionOcr } from "../api";
 import {
@@ -8,6 +8,7 @@ import {
   stopMediaStream,
   requestGeolocationOnce,
   cameraErrorToTranslationKey,
+  getGeolocationCoordinates,
 } from "../utils/cameraStream";
 
 // ─── STEPS ────────────────────────────────────────────────────────────────────
@@ -240,11 +241,7 @@ function AutoRotationScreen({ onNext }) {
       <div />
       <div className="flex flex-col items-center text-center fade-up">
         <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8" style={{ background: '#eef5fb' }}>
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-            <path d="M8 20 A12 12 0 1 1 20 32" stroke="#1e6fa8" strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M8 26 L8 20 L14 20" stroke="#1e6fa8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <rect x="15" y="10" width="12" height="20" rx="2" stroke="#1e6fa8" strokeWidth="2" />
-          </svg>
+          <RotateCw className="w-10 h-10 text-[#1e6fa8]" />
         </div>
         <h2 className="font-syne text-2xl font-bold text-gray-900 mb-3" style={{ fontWeight: 700 }}>{t("Turn Off Auto-Rotation")}</h2>
         <p className="text-gray-500 text-sm leading-relaxed mb-6 max-w-xs">
@@ -278,6 +275,17 @@ function PermissionsScreen({ onGranted }) {
       const stream = await acquireCameraStream();
       stopMediaStream(stream);
       await requestGeolocationOnce();
+
+      try {
+        const loc = await getGeolocationCoordinates({ timeout: 5000 });
+        if (loc.ok && loc.coords) {
+          const locStr = `${loc.coords.latitude}, ${loc.coords.longitude}`;
+          localStorage.setItem("user_location", locStr);
+        }
+      } catch (e) {
+        console.error("Failed to capture location coordinates", e);
+      }
+
       setStatus("idle");
       onGranted();
     } catch (err) {
@@ -760,6 +768,11 @@ export default function WindshieldClaim() {
         formData.append("type", step.id);
         formData.append("image", imageFile);
 
+        const loc = localStorage.getItem("user_location") || "";
+        if (loc) {
+          formData.append("location", loc);
+        }
+
         const response = await uploadInspectionOcr(formData);
         
         if (response?.detected_text === "UNREADABLE") {
@@ -805,6 +818,11 @@ export default function WindshieldClaim() {
     try {
       const windshieldFormData = new FormData();
       if (unique_id) windshieldFormData.append("unique_id", unique_id);
+      
+      const loc = localStorage.getItem("user_location") || "";
+      if (loc) {
+        windshieldFormData.append("location", loc);
+      }
       
       let hasPlateImage = false;
       let hasCloseupImage = false;

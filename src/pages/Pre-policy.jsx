@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { editInspectionOcr, editDamageAi, reassessDamageResult, editCorrectIncorrectResult, rotateDamageMedia } from "../api";
+import { getUser } from "../utils/auth";
 
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
 function ImageEditorModal({ imageUrl, onClose, onSave }) {
@@ -11,6 +12,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
     const [history, setHistory] = useState([]);
     const [imageLoaded, setImageLoaded] = useState(false);
     const lastPos = useRef(null);
+    const originalImageRef = useRef(null);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -42,6 +44,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     setHistory([canvas.toDataURL()]);
                     setImageLoaded(true);
+                    originalImageRef.current = img;
                     URL.revokeObjectURL(objectUrl);
                 };
                 img.onerror = () => {
@@ -63,6 +66,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 setHistory([canvas.toDataURL()]);
                 setImageLoaded(true);
+                originalImageRef.current = img;
             };
             img.onerror = () => {
                 ctx.fillStyle = '#333';
@@ -109,13 +113,17 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
         ctx.lineWidth = lineWidth;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
+        ctx.globalCompositeOperation = "source-over";
 
         if (tool === "pen") {
-            ctx.globalCompositeOperation = "source-over";
             ctx.strokeStyle = color;
         } else if (tool === "eraser") {
-            ctx.globalCompositeOperation = "destination-out";
-            ctx.strokeStyle = "rgba(0,0,0,1)";
+            if (originalImageRef.current) {
+                const pattern = ctx.createPattern(originalImageRef.current, "no-repeat");
+                ctx.strokeStyle = pattern;
+            } else {
+                ctx.strokeStyle = "#ffffff";
+            }
         } else if (tool === "rect") {
             // handled on mouseup
             lastPos.current = lastPos.current;
@@ -145,7 +153,11 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
         const ctx = canvas.getContext("2d");
         const img = new Image();
         img.src = newHistory[newHistory.length - 1];
-        img.onload = () => ctx.drawImage(img, 0, 0);
+        img.onload = () => {
+            ctx.globalCompositeOperation = "source-over";
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+        };
     };
 
     const handleSave = () => {
@@ -396,11 +408,26 @@ function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose,
 
 // ─── Field Row ────────────────────────────────────────────────────────────────────
 function FieldRow({ label, value, wide }) {
+    const isLocation = label === "Location" && value && value !== "—" && value.includes(",");
     return (
         <div className={`flex items-center gap-4 ${wide ? "col-span-2" : ""}`}>
             <span className="text-sm font-medium text-gray-600 w-40 shrink-0">{label}</span>
-            <div className="flex-1 bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 min-h-[40px]">
-                {value || <span className="text-gray-400">—</span>}
+            <div className="flex-1 bg-gray-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 min-h-[40px] flex items-center justify-between gap-2">
+                <span>{value || <span className="text-gray-400">—</span>}</span>
+                {isLocation && (
+                    <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value.trim())}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="no-print inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+                    >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                        </svg>
+                        Check Location
+                    </a>
+                )}
             </div>
         </div>
     );
@@ -532,6 +559,7 @@ function ImageSkeleton() {
 }
 
 // ─── Correct / Incorrect Toggle ────────────────────────────────────────────────
+// ─── Review Status Toggle ────────────────────────────────────────────────
 function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) {
     const [correct, setCorrect] = useState(initialCorrect);
     const [notes, setNotes] = useState(initialNotes || "");
@@ -544,24 +572,41 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
         setError("");
         try {
             await editCorrectIncorrectResult(inspectionId, {
-                correct_result: correct,
+                correct_result: correct === "accepted" || correct === true,
                 additional_notes: notes
             });
             setIsEditing(false);
         } catch (err) {
-            setError(err?.message || "Failed to save result");
+            setError(err?.message || "Failed to save status");
         } finally {
             setSaving(false);
         }
     };
 
+    const statusConfig = {
+        pending: { label: "Pending", color: "text-amber-600 bg-amber-50 border-amber-100", activeBg: "bg-amber-500 text-white hover:bg-amber-600" },
+        viewed: { label: "Viewed", color: "text-blue-600 bg-blue-50 border-blue-100", activeBg: "bg-blue-600 text-white hover:bg-blue-700" },
+        accepted: { label: "Accepted", color: "text-green-600 bg-green-50 border-green-100", activeBg: "bg-green-600 text-white hover:bg-green-700" },
+        rejected: { label: "Rejected", color: "text-red-600 bg-red-50 border-red-100", activeBg: "bg-red-600 text-white hover:bg-red-705" }
+    };
+
+    const getStatusLabel = (val) => {
+        if (val === true || val === "accepted") return "accepted";
+        if (val === false || val === "rejected") return "rejected";
+        if (val === "viewed") return "viewed";
+        if (val === "pending") return "pending";
+        return null;
+    };
+
+    const currentStatus = getStatusLabel(correct);
+
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 no-print flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Result Validation</span>
+                <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Review Status</span>
                 {!isEditing && (
                     <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                        Edit Result
+                        Edit Status
                     </button>
                 )}
             </div>
@@ -570,10 +615,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-sm">
                         <span className="font-medium text-gray-600">Current Status:</span>
-                        {correct === true ? (
-                            <span className="text-green-600 font-bold bg-green-50 px-2 py-1 rounded">✓ Correct</span>
-                        ) : correct === false ? (
-                            <span className="text-red-600 font-bold bg-red-50 px-2 py-1 rounded">✗ Incorrect</span>
+                        {currentStatus ? (
+                            <span className={`font-bold px-2 py-1 rounded border capitalize ${statusConfig[currentStatus].color}`}>
+                                {currentStatus}
+                            </span>
                         ) : (
                             <span className="text-gray-400 font-medium">— Not Marked —</span>
                         )}
@@ -587,19 +632,22 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
                 </div>
             ) : (
                 <div className="flex flex-col gap-4">
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setCorrect(true)}
-                            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${correct === true ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600'}`}
-                        >
-                            ✓ Correct
-                        </button>
-                        <button
-                            onClick={() => setCorrect(false)}
-                            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${correct === false ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-600'}`}
-                        >
-                            ✗ Incorrect
-                        </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {Object.entries(statusConfig)
+                            .filter(([key]) => key === "accepted" || key === "rejected")
+                            .map(([key, cfg]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setCorrect(key)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors border ${
+                                        currentStatus === key
+                                            ? cfg.activeBg + " border-transparent"
+                                            : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                                    }`}
+                                >
+                                    {cfg.label}
+                                </button>
+                            ))}
                     </div>
 
                     <div className="flex items-center gap-3">
@@ -713,10 +761,15 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
         }
     };
 
+    const currentUser = getUser();
+    const isAdmin = currentUser?.is_staff === true;
+
     // Extract data from props — inspectionRow has customer/row info, ocrData has OCR results
     const customerName = inspectionRow?.name || "—";
     const customerEmail = inspectionRow?.email || "—";
     const policyNumber = inspectionRow?.policy || "—";
+    const location = inspectionRow?.location || "—";
+    const fakeImgDetected = inspectionRow?.fakeImgDetection || inspectionRow?.fake_img_detection || damageData?.fake_img_detection || false;
 
     // ── Parse OCR array response ──────────────────────────────────────────────────
     // API returns: [{ id, type, image, detected_text, created_at }, ...]
@@ -789,23 +842,25 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                     </h1>
 
                     <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setShowReassessModal(true)}
-                            disabled={reassessing}
-                            className="no-print flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-blue-200 disabled:opacity-50"
-                        >
-                            {reassessing ? (
-                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                            ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                </svg>
-                            )}
-                            Reassessment
-                        </button>
+                        {isAdmin && (
+                            <button
+                                onClick={() => setShowReassessModal(true)}
+                                disabled={reassessing}
+                                className="no-print flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-blue-200 disabled:opacity-50"
+                            >
+                                {reassessing ? (
+                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                    </svg>
+                                )}
+                                Reassessment
+                            </button>
+                        )}
 
                         <button
                             onClick={handleExportPDF}
@@ -886,7 +941,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                 {!ocrLoading && inspectionRow?.id && (
                     <CorrectIncorrectToggle
                         inspectionId={inspectionRow.id}
-                        initialCorrect={damageData?.correct_result ?? inspectionRow.correctResult}
+                        initialCorrect={damageData?.review_status ?? damageData?.correct_result ?? inspectionRow.correctResult}
                         initialNotes={damageData?.additional_notes ?? inspectionRow.additionalNotes}
                     />
                 )}
@@ -902,7 +957,14 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             <FieldRow label="Full Name" value={customerName} />
                             <FieldRow label="Email Address" value={customerEmail} />
                             <FieldRow label="Policy No." value={policyNumber} />
+                            <FieldRow label="Location" value={location} />
                             <FieldRow label="Status" value={inspectionRow?.status || "—"} />
+                            {fakeImgDetected && (
+                                <FieldRow
+                                    label="Fake Image detected"
+                                    value={<span className="text-red-600 font-bold uppercase tracking-wider">Yes</span>}
+                                />
+                            )}
                         </div>
                     )}
                 </SectionCard>
