@@ -263,24 +263,31 @@ export default function useVehicleSideWS({
 
                     // Success implies it's explicitly correct from the backend,
                     // or the detected side matches what we expect
-                    const isSuccess =
+                    const isSameSide =
                         data.correct === true ||
                         (detectedStr &&
                             expectedSide &&
                             detectedStr.toLowerCase() === expectedSide.toLowerCase());
 
-                    const isRealImage = data.real_image !== false;
-                    if (!isRealImage) {
+                    const isFakeImg =
+                        data.fake_img === true ||
+                        data.fake_img === "true" ||
+                        data.fake_image === true ||
+                        data.fake_image === "true" ||
+                        data.real_image === false ||
+                        data.real_image === "false";
+
+                    if (isFakeImg) {
                         fakeImgDetectedRef.current = true;
                     }
 
-                    if (isSuccess) {
-                        if (isRealImage) {
-                            setCaptureResult("success");
-                        } else {
-                            setCaptureResult("fake_image_detected");
-                        }
+                    if (isFakeImg) {
+                        // "when the user captures side image and the expected and recieved is same but the fake img is true then show that fake image detected try again"
+                        setCaptureResult("fake_image_detected");
+                    } else if (isSameSide) {
+                        setCaptureResult("success");
                     } else {
+                        // "when fake img is false but the other one is not matching then show that side not detected manage the popups accordingly"
                         setCaptureResult("failed");
 
                         // If the user has tried 3+ times for this side, auto-advance to keep flow moving

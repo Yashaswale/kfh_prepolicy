@@ -60,6 +60,14 @@ export function getGeolocationCoordinates(options = {}) {
       resolve({ ok: false, error: "Not supported" });
       return;
     }
+
+    const firstOptions = {
+      timeout: 10000,
+      maximumAge: 300000, // 5 minutes cached position
+      enableHighAccuracy: true,
+      ...options,
+    };
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
@@ -72,14 +80,31 @@ export function getGeolocationCoordinates(options = {}) {
         });
       },
       (err) => {
-        resolve({ ok: false, error: err.message });
+        console.warn("First geolocation attempt failed, trying low-accuracy fallback...", err);
+        // Fallback: try with enableHighAccuracy: false, longer timeout and cache
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              ok: true,
+              coords: {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+              }
+            });
+          },
+          (err2) => {
+            console.error("Fallback geolocation attempt failed:", err2);
+            resolve({ ok: false, error: err2.message });
+          },
+          {
+            timeout: 15000,
+            maximumAge: 600000, // 10 minutes cache
+            enableHighAccuracy: false,
+          }
+        );
       },
-      {
-        timeout: 10000,
-        maximumAge: 0,
-        enableHighAccuracy: true,
-        ...options,
-      }
+      firstOptions
     );
   });
 }

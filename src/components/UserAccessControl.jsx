@@ -476,7 +476,7 @@ export default function UserAccessControl() {
                         <th className="px-4 py-3 text-left font-semibold text-gray-700 w-12">Sr No</th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Supervisor Name</th>
                         <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Role Type</th>
+                        {!isAdmin && <th className="px-4 py-3 text-left font-semibold text-gray-700">Role Type</th>}
                         <th className="px-4 py-3 text-left font-semibold text-gray-700 w-32">Total Sub-users</th>
                         <th className="px-4 py-3 text-right font-semibold text-gray-700 pr-6">Actions</th>
                       </tr>
@@ -488,11 +488,13 @@ export default function UserAccessControl() {
                             <td className="px-4 py-3 text-gray-500">{sup.serial_number ?? (index + 1)}</td>
                             <td className="px-4 py-3 font-semibold text-gray-800">{sup.name}</td>
                             <td className="px-4 py-3 text-gray-500">{sup.email}</td>
-                            <td className="px-4 py-3 text-gray-600">
-                              <span className="px-2 py-0.5 text-xs font-semibold rounded bg-green-50 text-green-700 border border-green-100">
-                                {getRoleLabel(sup.type)}
-                              </span>
-                            </td>
+                            {!isAdmin && (
+                              <td className="px-4 py-3 text-gray-600">
+                                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-green-50 text-green-700 border border-green-100">
+                                  {getRoleLabel(sup.type)}
+                                </span>
+                              </td>
+                            )}
                             <td className="px-4 py-3">
                               <span className="bg-gray-100 text-gray-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">
                                 {sup.subUsersCount ?? 0}
@@ -542,7 +544,7 @@ export default function UserAccessControl() {
                           </tr>
                           {expandedSupervisorId === sup.id && (
                             <tr className="bg-gray-50/50">
-                              <td colSpan={6} className="px-6 py-4 border-b border-gray-200">
+                              <td colSpan={isAdmin ? 5 : 6} className="px-6 py-4 border-b border-gray-200">
                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                   <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
                                     <span className="block text-[10px] text-gray-400 font-semibold uppercase">Total Sent</span>

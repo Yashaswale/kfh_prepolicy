@@ -436,7 +436,7 @@ export default function App() {
         sort_by: sortByParam,
         page: currentPage,
         user_type: creatorTypeCode,
-        ...(correctResultFilter !== "All Review Status" && correctResultFilter !== "All" ? { correct_result: correctResultFilter.toLowerCase() } : {}),
+        ...(correctResultFilter !== "All Review Status" && correctResultFilter !== "All" ? { review_status: correctResultFilter.toLowerCase() } : {}),
       };
 
       try {
