@@ -257,7 +257,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         password: formPassword,
         type: formType,
       };
-      if (!isAdminSubUsers) {
+      if (isAdmin && !isAdminSubUsers) {
         payload.supervisor = parseInt(supervisorId, 10);
       }
       await createSubUser(payload);
@@ -707,7 +707,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                     </span>
                   </div>
 
-                  {!isSupervisorAdmin && (!isAdmin || isAdminSubUsers) && (
+                  {!isSupervisorAdmin && (
                     <button
                       onClick={() => {
                         resetForms();
