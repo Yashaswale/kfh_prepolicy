@@ -190,7 +190,24 @@ const resources = {
       "Show Guide": "Show Guide",
       "Tap thumbnail to view guide": "Tap thumbnail to view guide",
       "Side verified successfully! Click Next to proceed.": "Side verified successfully! Click Next to proceed.",
-      "Verification failed. Tap the thumbnail to review the guide.": "Verification failed. Tap the thumbnail to review the guide."
+      "Verification failed. Tap the thumbnail to review the guide.": "Verification failed. Tap the thumbnail to review the guide.",
+
+      // Additional popups / labels
+      "Text Not Detected": "Text Not Detected",
+      "We couldn't read the text clearly. Would you like to retake the photo or continue?": "We couldn't read the text clearly. Would you like to retake the photo or continue?",
+      "Retake Photo": "Retake Photo",
+      "Continue to Next Step": "Continue to Next Step",
+      "Verifying image...": "Verifying image...",
+      "Side Not Detected": "Side Not Detected",
+      "Please try again. Make sure you align the vehicle side correctly.": "Please try again. Make sure you align the vehicle side correctly.",
+      "Try Again": "Try Again",
+      "Real Car Required": "Real Car Required",
+      "Please take a picture of a real car. Do not take pictures from any laptop or other devices.": "Please take a picture of a real car. Do not take pictures from any laptop or other devices.",
+      "6 photos required: License plate, chassis & 4 sides": "6 photos required: License plate, chassis & 4 sides",
+      "Capture required photos and any additional damage evidence for your motor claim assessment": "Capture required photos and any additional damage evidence for your motor claim assessment",
+      "License plate + chassis number photos": "License plate + chassis number photos",
+      "Front/Rear/Left/Right side capture via live guidance": "Front/Rear/Left/Right side capture via live guidance",
+      "Add unlimited extra damage photos": "Add unlimited extra damage photos"
     }
   },
   ar: {
@@ -379,7 +396,24 @@ const resources = {
       "Show Guide": "عرض الدليل",
       "Tap thumbnail to view guide": "اضغط على الصورة المصغرة لعرض الدليل",
       "Side verified successfully! Click Next to proceed.": "تم التحقق من الجانب بنجاح! اضغط على التالي للمتابعة.",
-      "Verification failed. Tap the thumbnail to review the guide.": "فشل التحقق. اضغط على الصورة المصغرة لمراجعة الدليل."
+      "Verification failed. Tap the thumbnail to review the guide.": "فشل التحقق. اضغط على الصورة المصغرة لمراجعة الدليل.",
+
+      // Additional popups / labels
+      "Text Not Detected": "لم يتم اكتشاف نص",
+      "We couldn't read the text clearly. Would you like to retake the photo or continue?": "لم نتمكن من قراءة النص بوضوح. هل تود إعادة التقاط الصورة أم الاستمرار؟",
+      "Retake Photo": "إعادة التقاط الصورة",
+      "Continue to Next Step": "الاستمرار للخطوة التالية",
+      "Verifying image...": "جاري التحقق من الصورة...",
+      "Side Not Detected": "لم يتم اكتشاف الجانب",
+      "Please try again. Make sure you align the vehicle side correctly.": "يرجى المحاولة مرة أخرى. تأكد من محاذاة جانب المركبة بشكل صحيح.",
+      "Try Again": "حاول مجدداً",
+      "Real Car Required": "يجب تصوير سيارة حقيقية",
+      "Please take a picture of a real car. Do not take pictures from any laptop or other devices.": "يرجى التقاط صورة لسيارة حقيقية. لا تلتقط صوراً من شاشة الكمبيوتر المحمول أو أي أجهزة أخرى.",
+      "6 photos required: License plate, chassis & 4 sides": "مطلوب 6 صور: اللوحة، الشاسيه، و4 جوانب",
+      "Capture required photos and any additional damage evidence for your motor claim assessment": "التقط الصور المطلوبة وأي أدلة إضافية على الأضرار لتقييم مطالبة السيارات الخاصة بك",
+      "License plate + chassis number photos": "صور لوحة السيارة ورقم الشاسيه",
+      "Front/Rear/Left/Right side capture via live guidance": "التقاط الجانب الأمامي/الخلفي/الأيسر/الأيمن عبر التوجيه المباشر",
+      "Add unlimited extra damage photos": "إضافة صور أضرار إضافية غير محدودة"
     }
   }
 };

@@ -133,7 +133,7 @@ const SendLinkModal = ({ onClose }) => {
             <label className="block text-[13px] font-semibold text-gray-700 mb-3">
               Type <span className="text-red-500">*</span>
             </label>
-            <div className="flex flex-nowrap gap-3">
+            <div className="flex flex-wrap gap-3">
               {types.map((opt) => (
                 <label
                   key={opt.id}

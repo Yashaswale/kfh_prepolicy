@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "../api";
 import { setAuthData } from "../utils/auth";
+import { Eye, EyeOff } from "lucide-react";
 
 const KFHLogo = () => (
   <img src="/KFH_logo.png" alt="KFH Logo" className="h-10 object-contain" />
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -50,7 +52,7 @@ export default function LoginPage() {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: "url('/login_img.png')",
+          backgroundImage: "url('/login_img.webp')",
           filter: "brightness(0.55) grayscale(0.3)",
         }}
       />
@@ -61,8 +63,8 @@ export default function LoginPage() {
       </div>
 
       {/* Centered login card */}
-      <div className="relative z-10 flex min-h-screen items-center justify-end pr-[10%]">
-        <div className="bg-white rounded-sm shadow-2xl p-10 w-full max-w-md">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 md:justify-end md:pr-[10%]">
+        <div className="bg-white rounded-sm shadow-2xl p-6 sm:p-10 w-full max-w-md">
           <h1 className="text-center text-2xl font-bold text-gray-900 mb-8">
             Log In to Dashboard
           </h1>
@@ -91,13 +93,22 @@ export default function LoginPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
-            <input
-              type="password"
-              placeholder="enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded px-4 py-3 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-gray-300 rounded px-4 py-3 pr-12 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center mb-7">

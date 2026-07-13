@@ -826,7 +826,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
 
             {/* Header */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-30 no-print">
-                <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+                <div className="max-w-6xl mx-auto px-4 md:px-6 min-h-[4rem] py-3 md:py-0 md:h-16 flex flex-col sm:flex-row items-center justify-between gap-3">
                     <button
                         onClick={onBack}
                         className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-4 py-2 rounded-xl hover:bg-gray-100"
@@ -949,11 +949,11 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                 {/* Customer Details */}
                 <SectionCard title="Customer Details">
                     {ocrLoading ? (
-                        <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
                             {Array.from({ length: 4 }).map((_, i) => <FieldSkeleton key={i} />)}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-x-12 gap-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
                             <FieldRow label="Full Name" value={customerName} />
                             <FieldRow label="Email Address" value={customerEmail} />
                             <FieldRow label="Policy No." value={policyNumber} />
@@ -972,7 +972,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                 {/* License & Chassis */}
                 <SectionCard>
                     {ocrLoading ? (
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div>
                                 <div className="h-5 w-32 bg-gray-200 rounded mb-3 animate-pulse" />
                                 <ImageSkeleton />
@@ -985,7 +985,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             {/* License */}
                             <div>
                                 <h3 className="text-sm font-bold text-gray-900 mb-3">Plate No</h3>
@@ -1070,7 +1070,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                         </div>
 
                                         {/* Original & AI Images side by side */}
-                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                             <div>
                                                 <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
                                                     onClick={() => originalUrl && setFullscreenImage({ url: originalUrl, label: `${sideLabel} — Original`, mediaId: entry.id, rotateTarget: 'original' })}>

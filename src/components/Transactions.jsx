@@ -263,9 +263,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-100 p-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
 
       {/* Top Section */}
-      <div className="flex gap-6 mb-6">
+      <div className="flex flex-col xl:flex-row gap-6 mb-6">
         {/* Left Panel */}
-        <div className="w-[520px] shrink-0 flex flex-col gap-4">
+        <div className="w-full xl:w-[520px] shrink-0 flex flex-col gap-4">
           {/* Credits / summary */}
           <div className="bg-[#1e7e5c] rounded-xl px-6 py-4 flex items-center justify-between">
             <span className="text-white font-semibold text-base">Total Links Sent</span>

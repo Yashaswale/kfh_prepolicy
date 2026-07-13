@@ -1,7 +1,5 @@
-import { useState, useEffect, useRef, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import {
-  listSupervisors,
-  listSubUsers,
   createSubUser,
   updateUser,
   deleteUser,
@@ -40,12 +38,12 @@ const ACCESS_TYPES = [
 
 const MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export default function UserAccessControl() {
+export default function UserAccessControl({ isAdminSubUsers = false }) {
   const currentUser = getUser();
   const isAdmin = currentUser?.is_staff === true && (currentUser?.type === "supervisor" || currentUser?.type === "supervisor_admin");
   const isSupervisorAdmin = currentUser?.is_staff === false && currentUser?.type === "supervisor_admin";
   const isSupervisorOnly = currentUser?.is_staff === false && currentUser?.type === "supervisor";
-  const canViewAllSupervisors = isAdmin || isSupervisorAdmin;
+  const canViewAllSupervisors = (isAdmin || isSupervisorAdmin) && !isAdminSubUsers;
 
   // State
   const [supervisors, setSupervisors] = useState([]);
@@ -54,7 +52,7 @@ export default function UserAccessControl() {
   const [expandedSubuserId, setExpandedSubuserId] = useState(null);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
   const [subUsers, setSubUsers] = useState([]);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -88,13 +86,14 @@ export default function UserAccessControl() {
 
   // Active item state for edit/delete
   const [userToEdit, setUserToEdit] = useState(null);
+  const [isEditingSupervisor, setIsEditingSupervisor] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
 
   // Form Fields
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
-  const [formType, setFormType] = useState("pre_policy_broad_access");
+  const [formType, setFormType] = useState("");
   const [formSupervisorId, setFormSupervisorId] = useState("");
 
   // Fetch all supervisors and their sub-user lists to display total counts
@@ -104,7 +103,7 @@ export default function UserAccessControl() {
     try {
       const data = await getSupervisorAccountsSummary({ month, year });
       const sups = Array.isArray(data) ? data : (data?.results ?? []);
-      
+
       const mapped = sups.map(sup => ({
         ...sup,
         subUsersCount: sup.sub_users_count ?? 0,
@@ -118,9 +117,8 @@ export default function UserAccessControl() {
     }
   };
 
-  const fetchSupervisorSummary = async (supervisorId, month, year, currentSubUsersList = []) => {
+  const fetchSupervisorSummary = async (supervisorId, month, year) => {
     setLoadingSummary(true);
-    setLoadingSubusersSummary(true);
     
     // 1. Fetch Supervisor's own summary
     try {
@@ -138,38 +136,37 @@ export default function UserAccessControl() {
     } finally {
       setLoadingSummary(false);
     }
-
-    // 2. Aggregate sub-users summary from currentSubUsersList stats directly
-    try {
-      const aggregated = currentSubUsersList.reduce(
-        (acc, curr) => ({
-          total_links_sent: acc.total_links_sent + (curr.total_links_sent ?? 0),
-          total_clicks: acc.total_clicks + (curr.total_clicked ?? 0),
-          total_opens: acc.total_opens + (curr.total_completed ?? 0),
-          not_clicked: acc.not_clicked + ((curr.total_links_sent ?? 0) - (curr.total_clicked ?? 0)),
-        }),
-        { total_links_sent: 0, total_clicks: 0, total_opens: 0, not_clicked: 0 }
-      );
-
-      setSubusersSummary(aggregated);
-    } catch (err) {
-      console.error("Failed to load sub-users aggregated summary", err);
-    } finally {
-      setLoadingSubusersSummary(false);
-    }
   };
 
   const fetchSubUsersData = async (supervisorId, month = statsMonth, year = statsYear) => {
     setLoading(true);
+    setLoadingSubusersSummary(true);
     setError("");
     try {
       const data = await getSubUsersSummary(supervisorId, { month, year });
       const list = Array.isArray(data) ? data : (data?.results ?? []);
       setSubUsers(list);
+
+      if (data && !Array.isArray(data)) {
+        setSubusersSummary({
+          total_links_sent: data.total_links_sent ?? 0,
+          total_clicks: data.total_clicked ?? 0,
+          total_opens: data.total_completed ?? 0,
+          not_clicked: (data.total_links_sent ?? 0) - (data.total_clicked ?? 0),
+        });
+      } else {
+        setSubusersSummary({
+          total_links_sent: 0,
+          total_clicks: 0,
+          total_opens: 0,
+          not_clicked: 0,
+        });
+      }
     } catch (err) {
       setError(err?.message || "Failed to load sub-users summary.");
     } finally {
       setLoading(false);
+      setLoadingSubusersSummary(false);
     }
   };
 
@@ -179,18 +176,18 @@ export default function UserAccessControl() {
       fetchSupervisorsData(statsMonth, statsYear);
     } else if (selectedSupervisor) {
       fetchSubUsersData(selectedSupervisor.id, statsMonth, statsYear);
-    } else if (isSupervisorOnly) {
-      // Direct sub-users list for supervisor
+    } else if (isSupervisorOnly || isAdminSubUsers) {
+      // Direct sub-users list for supervisor / admin
       setSelectedSupervisor(currentUser);
     }
   }, [selectedSupervisor, statsMonth, statsYear]);
 
-  // Effect to load summary statistics when supervisor, filters, or sub-users change
+  // Effect to load summary statistics when supervisor or filters change
   useEffect(() => {
     if (selectedSupervisor) {
-      fetchSupervisorSummary(selectedSupervisor.id, statsMonth, statsYear, subUsers);
+      fetchSupervisorSummary(selectedSupervisor.id, statsMonth, statsYear);
     }
-  }, [selectedSupervisor, statsMonth, statsYear, subUsers]);
+  }, [selectedSupervisor, statsMonth, statsYear]);
 
   const refreshCurrentView = () => {
     if (selectedSupervisor) {
@@ -240,13 +237,13 @@ export default function UserAccessControl() {
 
   const handleCreateSubUser = async (e) => {
     e.preventDefault();
-    if (!formName || !formEmail || !formPassword) {
+    if (!formName || !formEmail || !formPassword || !formType) {
       triggerAlert("All fields are required.", false);
       return;
     }
-    
+
     // Determine supervisor ID association
-    const supervisorId = isAdmin ? (formSupervisorId || selectedSupervisor?.id) : currentUser.id;
+    const supervisorId = (isAdmin && !isAdminSubUsers) ? (formSupervisorId || selectedSupervisor?.id) : currentUser.id;
     if (!supervisorId) {
       triggerAlert("Please select a Supervisor.", false);
       return;
@@ -254,13 +251,16 @@ export default function UserAccessControl() {
 
     setError("");
     try {
-      await createSubUser({
+      const payload = {
         name: formName,
         email: formEmail,
         password: formPassword,
         type: formType,
-        supervisor: parseInt(supervisorId, 10),
-      });
+      };
+      if (!isAdminSubUsers) {
+        payload.supervisor = parseInt(supervisorId, 10);
+      }
+      await createSubUser(payload);
       triggerAlert("Sub-user created successfully!");
       setShowCreateSubUserModal(false);
       resetForms();
@@ -283,9 +283,9 @@ export default function UserAccessControl() {
         name: formName,
         email: formEmail,
       };
-      // Type is only editable for sub-users, type/supervisor_admin is editable for supervisors
-      if (userToEdit.type === "supervisor" || userToEdit.type === "supervisor_admin") {
-        payload.type = formSupervisorType;
+      // Type is only editable for sub-users
+      if (isEditingSupervisor) {
+        payload.type = userToEdit.type || "supervisor";
       } else {
         payload.type = formType;
       }
@@ -320,11 +320,13 @@ export default function UserAccessControl() {
     }
   };
 
-  const openEditModal = (user) => {
+  const openEditModal = (user, isSupervisor = false) => {
+    const isSup = isSupervisor || user.type === "supervisor" || user.type === "supervisor_admin";
     setUserToEdit(user);
+    setIsEditingSupervisor(isSup);
     setFormName(user.name || "");
     setFormEmail(user.email || "");
-    setFormType(user.type || "pre_policy_broad_access");
+    setFormType(user.type || "");
     setFormSupervisorType(user.type || "supervisor");
     setShowEditModal(true);
   };
@@ -338,18 +340,35 @@ export default function UserAccessControl() {
     setFormName("");
     setFormEmail("");
     setFormPassword("");
-    setFormType("pre_policy_broad_access");
+    setFormType("");
     setFormSupervisorType("supervisor");
     setFormSupervisorId("");
     setUserToEdit(null);
+    setIsEditingSupervisor(false);
   };
 
   // Helper mapping for roles
-  const getRoleLabel = (type) => {
-    if (type === "supervisor") return "Supervisor";
-    if (type === "supervisor_admin") return "Supervisor Admin";
-    const found = ACCESS_TYPES.find((t) => t.key === type);
-    return found ? found.label : type;
+  const getRoleLabel = (userOrType) => {
+    if (!userOrType) return "";
+    if (typeof userOrType === "string") {
+      const type = userOrType;
+      if (type === "supervisor") return "Supervisor";
+      if (type === "supervisor_admin") return "Supervisor Admin";
+      const found = ACCESS_TYPES.find((t) => t.key === type);
+      return found ? found.label : type;
+    }
+
+    const user = userOrType;
+    if (user.type === "supervisor_admin") {
+      if (user.is_staff === true) {
+        return "Admin";
+      } else {
+        return "Supervisor Admin";
+      }
+    }
+    if (user.type === "supervisor") return "Supervisor";
+    const found = ACCESS_TYPES.find((t) => t.key === user.type);
+    return found ? found.label : user.type;
   };
 
   // Summary Metrics
@@ -358,7 +377,7 @@ export default function UserAccessControl() {
 
   return (
     <div className="min-h-[600px] font-sans text-sm">
-      
+
       {/* Alert Banners */}
       {successMsg && (
         <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded font-medium text-sm transition-all duration-300">
@@ -449,15 +468,6 @@ export default function UserAccessControl() {
                       >
                         Add Supervisor
                       </button>
-                      <button
-                        onClick={() => {
-                          resetForms();
-                          setShowCreateSubUserModal(true);
-                        }}
-                        className="bg-green-500 hover:bg-green-600 text-white font-medium px-4 py-2 rounded text-xs transition"
-                      >
-                        Add Sub-user
-                      </button>
                     </>
                   )}
                 </div>
@@ -491,7 +501,7 @@ export default function UserAccessControl() {
                             {!isAdmin && (
                               <td className="px-4 py-3 text-gray-600">
                                 <span className="px-2 py-0.5 text-xs font-semibold rounded bg-green-50 text-green-700 border border-green-100">
-                                  {getRoleLabel(sup.type)}
+                                  {getRoleLabel(sup)}
                                 </span>
                               </td>
                             )}
@@ -524,7 +534,7 @@ export default function UserAccessControl() {
                                 {isAdmin && (
                                   <>
                                     <button
-                                      onClick={() => openEditModal(sup)}
+                                      onClick={() => openEditModal(sup, true)}
                                       title="Edit Supervisor"
                                       className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600 transition"
                                     >
@@ -603,13 +613,13 @@ export default function UserAccessControl() {
                   </button>
                 </div>
               )}
-              
+
               {/* --- DUAL ROW TRANSACTION GRIDS FOR ADMIN --- */}
               {/* 1. Supervisor's Own Transactions */}
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Supervisor: {selectedSupervisor.name}'s Transactions
+                    Overall Summary for : {selectedSupervisor.name}
                   </h3>
                   {/* Period Filter Dropdowns for Stats */}
                   <div className="flex items-center gap-1.5">
@@ -693,11 +703,11 @@ export default function UserAccessControl() {
                     )}
                     <span className="font-semibold text-gray-800 text-sm hidden sm:inline">|</span>
                     <span className="font-semibold text-gray-800 text-sm">
-                      {isSupervisorOnly ? "My Sub-users List" : `Sub-users of ${selectedSupervisor.name}`}
+                      {isAdminSubUsers ? "Admin Sub-users List" : isSupervisorOnly ? "My Sub-users List" : `Sub-users of ${selectedSupervisor.name}`}
                     </span>
                   </div>
-                  
-                  {!isSupervisorAdmin && (
+
+                  {!isSupervisorAdmin && (!isAdmin || isAdminSubUsers) && (
                     <button
                       onClick={() => {
                         resetForms();
@@ -737,7 +747,7 @@ export default function UserAccessControl() {
                               <td className="px-4 py-3 text-gray-500">{user.email}</td>
                               <td className="px-4 py-3 text-gray-600">
                                 <span className="px-2 py-0.5 text-xs font-semibold rounded bg-green-50 text-green-700 border border-green-100">
-                                  {getRoleLabel(user.type)}
+                                  {getRoleLabel(user)}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-right pr-6">
@@ -755,7 +765,7 @@ export default function UserAccessControl() {
                                   {!isSupervisorAdmin && (
                                     <>
                                       <button
-                                        onClick={() => openEditModal(user)}
+                                        onClick={() => openEditModal(user, false)}
                                         className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-green-600 transition"
                                         title="Edit Sub-user"
                                       >
@@ -876,19 +886,9 @@ export default function UserAccessControl() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Supervisor Type</label>
-                  <select
-                    value={formSupervisorType}
-                    onChange={(e) => setFormSupervisorType(e.target.value)}
-                    className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
-                  >
-                    <option value="supervisor">Supervisor</option>
-                    <option value="supervisor_admin">Supervisor Admin</option>
-                  </select>
-                </div>
+
               </div>
-              
+
               <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
                 <button
                   type="button"
@@ -967,7 +967,9 @@ export default function UserAccessControl() {
                     value={formType}
                     onChange={(e) => setFormType(e.target.value)}
                     className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
+                    required
                   >
+                    <option value="">-- Choose Access Role --</option>
                     {ACCESS_TYPES.map((t) => (
                       <option key={t.key} value={t.key}>
                         {t.label}
@@ -1055,27 +1057,17 @@ export default function UserAccessControl() {
                   />
                 </div>
 
-                {/* Supervisors / Sub-users editing roles */}
-                {(userToEdit.type === "supervisor" || userToEdit.type === "supervisor_admin") ? (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Supervisor Type</label>
-                    <select
-                      value={formSupervisorType}
-                      onChange={(e) => setFormSupervisorType(e.target.value)}
-                      className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
-                    >
-                      <option value="supervisor">Supervisor</option>
-                      <option value="supervisor_admin">Supervisor Admin</option>
-                    </select>
-                  </div>
-                ) : (
+                {/* Only show access role type if the user is a subuser */}
+                {!isEditingSupervisor && (
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Access Role Type</label>
                     <select
                       value={formType}
                       onChange={(e) => setFormType(e.target.value)}
                       className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
+                      required
                     >
+                      <option value="">-- Choose Access Role --</option>
                       {ACCESS_TYPES.map((t) => (
                         <option key={t.key} value={t.key}>
                           {t.label}
@@ -1127,7 +1119,7 @@ export default function UserAccessControl() {
               <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
                 <span className="block font-bold text-gray-800">{userToDelete.name}</span>
                 <span className="block text-xs text-gray-500 mt-0.5">{userToDelete.email}</span>
-                <span className="block text-xs text-gray-500 font-semibold mt-1">Role: {getRoleLabel(userToDelete.type)}</span>
+                <span className="block text-xs text-gray-500 font-semibold mt-1">Role: {getRoleLabel(userToDelete)}</span>
               </div>
               <p className="text-xs text-red-600 font-medium mt-4">
                 This action is irreversible and will revoke all access privileges.

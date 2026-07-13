@@ -112,7 +112,7 @@ function Landing({ onStart }) {
           {t("Motor Claim Inspection")}
         </h1>
         <p className="fade-up-2 text-gray-500 text-center text-sm leading-relaxed mb-10">
-          Capture required photos and any additional damage evidence for your motor claim assessment
+          {t("Capture required photos and any additional damage evidence for your motor claim assessment")}
         </p>
 
         <div className="fade-up-2 w-full space-y-3 mb-10">
@@ -120,12 +120,12 @@ function Landing({ onStart }) {
             { icon: <Camera className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "License plate + chassis number photos" },
             { icon: <Camera className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "Front/Rear/Left/Right side capture via live guidance" },
             { icon: <Plus className="w-4 h-4" style={{color:'#1a8a3c'}}/>,   text: "Add unlimited extra damage photos" },
-            { icon: <MapPin className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: t("GPS location will be recorded") },
-            { icon: <Shield className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: t("Securely submitted for assessment") },
+            { icon: <MapPin className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "GPS location will be recorded" },
+            { icon: <Shield className="w-4 h-4" style={{color:'#1a8a3c'}}/>, text: "Securely submitted for assessment" },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3 bg-green-50 rounded-xl px-4 py-3">
               <div className="mt-0.5 flex-shrink-0">{item.icon}</div>
-              <span className="text-sm text-gray-600">{item.text}</span>
+              <span className="text-sm text-gray-600">{t(item.text)}</span>
             </div>
           ))}
         </div>
