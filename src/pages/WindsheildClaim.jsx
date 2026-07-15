@@ -587,7 +587,7 @@ function ImageSkeleton() {
 
 // ─── Correct / Incorrect Toggle ────────────────────────────────────────────────
 // ─── Review Status Toggle ────────────────────────────────────────────────
-function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) {
+function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hideEditStatus = false }) {
   const [correct, setCorrect] = useState(initialCorrect);
   const [notes, setNotes] = useState(initialNotes || "");
   const [isEditing, setIsEditing] = useState(false);
@@ -631,7 +631,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 no-print flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Review Status</span>
-        {!isEditing && (
+        {!isEditing && !hideEditStatus && (
           <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
             Edit Status
           </button>
@@ -713,7 +713,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack, onRefresh }) {
+export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack, onRefresh, hideEditStatus = false }) {
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
   const [editedWsImages, setEditedWsImages] = useState({});
@@ -967,6 +967,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             inspectionId={inspectionRow.id}
             initialCorrect={windshieldData?.review_status ?? windshieldData?.correct_result ?? inspectionRow.correctResult}
             initialNotes={windshieldData?.additional_notes ?? inspectionRow.additionalNotes}
+            hideEditStatus={hideEditStatus}
           />
         )}
 

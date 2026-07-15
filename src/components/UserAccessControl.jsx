@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, useRef } from "react";
 import {
   createSubUser,
   updateUser,
@@ -7,8 +7,16 @@ import {
   getAccountSummary,
   getSupervisorAccountsSummary,
   getSubUsersSummary,
+  listInspections,
+  getInspectionOcr,
+  getDamageResults,
+  getWindshieldResults,
+  regenerateInspectionLink,
+  markInspectionAsViewed,
 } from "../api";
 import { getUser } from "../utils/auth";
+import PrePolicyAssessmentResult from "../pages/Pre-policy";
+import WindShieldAssessmentResult from "../pages/WindsheildClaim";
 
 // ---- Icons ----
 const ArrowLeftIcon = () => (
@@ -28,6 +36,273 @@ const DeleteIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
   </svg>
 );
+
+// ---- Dashboard-like Icons for Inspection List ----
+const SearchIcon = () => (
+  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+  </svg>
+);
+
+const CalendarIcon = () => (
+  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+);
+
+const EyeIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+
+const CopyIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+);
+
+const ChevronDown = () => (
+  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+  </svg>
+);
+
+const ChevronLeft = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+  </svg>
+);
+
+// ---- Custom Select Dropdown ----
+function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className="relative inline-block" ref={ref} style={{ minWidth }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 border border-gray-300 rounded px-3 py-2 bg-white text-sm text-gray-700 w-full hover:border-green-400 transition"
+      >
+        <span className="flex-1 text-left whitespace-nowrap truncate">{value}</span>
+        <ChevronDown />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 min-w-full">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => { onChange(opt); setOpen(false); }}
+              className={`block w-full text-left px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${value === opt ? "bg-green-50 text-green-600 font-medium" : "text-gray-700"}`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Calendar Date Picker ----
+const CALENDAR_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const CALENDAR_WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+function DatePicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(value ? new Date(value) : new Date());
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const formatDisplay = (d) => {
+    if (!d) return "dd-mm-yyyy";
+    const date = new Date(d);
+    return `${String(date.getDate()).padStart(2, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
+  };
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+
+  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
+
+  const selectDay = (day) => {
+    const sel = new Date(year, month, day);
+    onChange(sel.toISOString().split("T")[0]);
+    setOpen(false);
+  };
+
+  const isSelected = (day) => {
+    if (!value) return false;
+    const d = new Date(value);
+    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+  };
+
+  const isToday = (day) => {
+    const t = new Date();
+    return t.getFullYear() === year && t.getMonth() === month && t.getDate() === day;
+  };
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 border border-gray-300 rounded px-3 py-2 bg-white text-sm text-gray-700 hover:border-green-400 transition min-w-[130px]"
+      >
+        <span className="flex-1 text-left">{formatDisplay(value)}</span>
+        <CalendarIcon />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 w-64">
+          <div className="flex items-center justify-between mb-3">
+            <button type="button" onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition">
+              <ChevronLeft />
+            </button>
+            <span className="text-sm font-semibold text-gray-800">{CALENDAR_MONTHS[month]} {year}</span>
+            <button type="button" onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition">
+              <ChevronRight />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 mb-1">
+            {CALENDAR_WEEK_DAYS.map(d => (
+              <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-y-0.5">
+            {cells.map((day, idx) => (
+              <div key={idx} className="flex items-center justify-center">
+                {day ? (
+                  <button
+                    type="button"
+                    onClick={() => selectDay(day)}
+                    className={`w-8 h-8 text-xs rounded-full flex items-center justify-center transition font-medium
+                      ${isSelected(day) ? "bg-green-500 text-white" : isToday(day) ? "border border-green-400 text-green-600" : "text-gray-700 hover:bg-green-50 hover:text-green-600"}`}
+                  >
+                    {day}
+                  </button>
+                ) : <div className="w-8 h-8" />}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+            <button
+              type="button"
+              onClick={() => { onChange(""); setOpen(false); }}
+              className="text-xs text-gray-400 hover:text-red-500 transition"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Inspection constants & helpers ----
+const STATUS_META = {
+  sent: { label: "Sent", color: "bg-yellow-600" },
+  processing: { label: "Processing", color: "bg-purple-500" },
+  received: { label: "Received", color: "bg-teal-500" },
+  expired: { label: "Expired", color: "bg-gray-500" },
+  regenerated: { label: "Regenerated", color: "bg-blue-500" },
+};
+
+const STATUS_FILTER_OPTIONS = [
+  "All Status",
+  "Sent",
+  "Processing",
+  "Received",
+  "Expired",
+  "Regenerated",
+];
+
+const STATUS_LABEL_TO_CODE = {
+  Sent: "sent",
+  Processing: "processing",
+  Received: "received",
+  Expired: "expired",
+  Regenerated: "regenerated",
+};
+
+const CREATOR_TYPE_FILTER_OPTIONS = [
+  "All User Types",
+  "Supervisor",
+  "Pre-Policy Broad Access",
+  "Pre-Policy Limited Access",
+  "Claims Broad Access",
+  "Claims Limited Access",
+];
+
+const CREATOR_TYPE_LABEL_TO_CODE = {
+  "Supervisor": "supervisor",
+  "Pre-Policy Broad Access": "pre_policy_broad_access",
+  "Pre-Policy Limited Access": "pre_policy_limited_access",
+  "Claims Broad Access": "claims_broad_access",
+  "Claims Limited Access": "claims_limited_access",
+};
+
+const damageColors = {
+  "Major Damage": "bg-red-500",
+  "Medium Damage": "bg-orange-500",
+  "Minor Damage": "bg-yellow-500",
+  "No Damage": "bg-green-500",
+  "Damaged": "bg-red-500",
+};
+
+const TAB_TYPE_MAP = {
+  pre: "vehicle",
+  motor: "motor",
+  wind: "windshield",
+};
+
+const renderReviewStatus = (status) => {
+  if (status === true || status === "accepted") {
+    return <span className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit">Accepted</span>;
+  }
+  if (status === false || status === "rejected") {
+    return <span className="text-red-600 font-semibold text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">Rejected</span>;
+  }
+  if (status === "viewed") {
+    return <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">Viewed</span>;
+  }
+  if (status === "pending") {
+    return <span className="text-amber-600 font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">Pending</span>;
+  }
+  return <span className="text-gray-400 text-xs">—</span>;
+};
 
 const ACCESS_TYPES = [
   { key: "pre_policy_broad_access", label: "Pre-Policy Broad Access" },
@@ -77,6 +352,34 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const now = new Date();
   const [statsMonth, setStatsMonth] = useState(MONTH_ABBRS[now.getMonth()]);
   const [statsYear, setStatsYear] = useState(String(now.getFullYear()));
+
+  // Inspection Listing States (for selected supervisor detail view)
+  const [inspectionsActiveTab, setInspectionsActiveTab] = useState("pre");
+  const [inspectionsSearch, setInspectionsSearch] = useState("");
+  const [inspectionsDebouncedSearch, setInspectionsDebouncedSearch] = useState("");
+  const [inspectionsDateFrom, setInspectionsDateFrom] = useState("");
+  const [inspectionsDateTo, setInspectionsDateTo] = useState("");
+  const [inspectionsStatusFilter, setInspectionsStatusFilter] = useState("All Status");
+  const [inspectionsCorrectResultFilter, setInspectionsCorrectResultFilter] = useState("All Review Status");
+  const [inspectionsCreatorTypeFilter, setInspectionsCreatorTypeFilter] = useState("All User Types");
+  const [inspectionsSortBy, setInspectionsSortBy] = useState("Newest First");
+  const [inspectionsCurrentPage, setInspectionsCurrentPage] = useState(1);
+  const [inspectionsRows, setInspectionsRows] = useState([]);
+  const [inspectionsTotalCount, setInspectionsTotalCount] = useState(0);
+  const [inspectionsTotalPages, setInspectionsTotalPages] = useState(1);
+  const [loadingInspections, setLoadingInspections] = useState(false);
+  const [inspectionsError, setInspectionsError] = useState("");
+  const [inspectionsDetailView, setInspectionsDetailView] = useState(null);
+  const [lastViewedInspectionId, setLastViewedInspectionId] = useState(null);
+
+  // Debounce effect for inspections search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setInspectionsDebouncedSearch(inspectionsSearch);
+      setInspectionsCurrentPage(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [inspectionsSearch]);
 
   // Modals state
   const [showCreateSupervisorModal, setShowCreateSupervisorModal] = useState(false);
@@ -188,6 +491,159 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
       fetchSupervisorSummary(selectedSupervisor.id, statsMonth, statsYear);
     }
   }, [selectedSupervisor, statsMonth, statsYear]);
+
+  // Fetch inspections for the selected supervisor
+  const fetchSupervisorInspections = async () => {
+    if (!selectedSupervisor?.id || !canViewAllSupervisors) return;
+
+    setLoadingInspections(true);
+    setInspectionsError("");
+
+    const statusCode =
+      inspectionsStatusFilter === "All Status" ? undefined : STATUS_LABEL_TO_CODE[inspectionsStatusFilter];
+    const typeCode = TAB_TYPE_MAP[inspectionsActiveTab];
+    const sortByParam = inspectionsSortBy === "Oldest First" ? "asc" : "des";
+    const creatorTypeCode =
+      inspectionsCreatorTypeFilter === "All User Types" ? undefined : CREATOR_TYPE_LABEL_TO_CODE[inspectionsCreatorTypeFilter];
+
+    const query = {
+      supervisor_id: selectedSupervisor.id,
+      status: statusCode,
+      name: inspectionsDebouncedSearch || undefined,
+      type: typeCode,
+      start_date: inspectionsDateFrom || undefined,
+      end_date: inspectionsDateTo || undefined,
+      sort_by: sortByParam,
+      page: inspectionsCurrentPage,
+      user_type: creatorTypeCode,
+      ...(inspectionsCorrectResultFilter !== "All Review Status" && inspectionsCorrectResultFilter !== "All" ? { review_status: inspectionsCorrectResultFilter.toLowerCase() } : {}),
+    };
+
+    try {
+      const data = await listInspections(query);
+      const results = Array.isArray(data) ? data : (data?.results ?? []);
+      const total = Array.isArray(data) ? results.length : (data?.count ?? results.length);
+      const pages = Array.isArray(data) ? 1 : (data?.total_pages ?? 1);
+      const current = Array.isArray(data) ? inspectionsCurrentPage : (data?.current_page ?? inspectionsCurrentPage);
+
+      setInspectionsTotalCount(total);
+      setInspectionsTotalPages(pages);
+      if (current !== inspectionsCurrentPage) setInspectionsCurrentPage(current);
+
+      const mapped = results.map((item, index) => {
+        let dateStr = "";
+        let timeStr = "";
+        if (item.created_at) {
+          try {
+            const dt = new Date(item.created_at);
+            dateStr = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+            timeStr = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+          } catch (_) {}
+        }
+
+        let updatedAtStr = "—";
+        if (item.updated_at) {
+          try {
+            const dt = new Date(item.updated_at);
+            const d = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+            const t = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+            updatedAtStr = `${d} ${t}`;
+          } catch (_) {}
+        }
+
+        return {
+          id: item.id ?? index + 1,
+          unique_verify_id: item.unique_verify_id ?? "",
+          name: item.customer_name ?? "-",
+          email: item.email ?? "",
+          policy: item.policy_number ?? "",
+          date: dateStr,
+          time: timeStr,
+          updatedAt: updatedAtStr,
+          damage: item.damage_level ?? "",
+          status: item.status ?? "",
+          link: item.link ?? "",
+          correctResult: item.review_status || item.correct_result,
+          additionalNotes: item.additional_notes,
+          location: item.location ?? "—",
+          createdBy: item.created_by_name ?? "—",
+          fakeImgDetection: item.fake_img_detection ?? false,
+          serialNumber: item.serial_number ?? (index + 1),
+        };
+      });
+
+      setInspectionsRows(mapped);
+    } catch (err) {
+      setInspectionsRows([]);
+      setInspectionsError("Unable to load inspections. Please try again.");
+    } finally {
+      setLoadingInspections(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSupervisorInspections();
+  }, [
+    selectedSupervisor,
+    inspectionsActiveTab,
+    inspectionsStatusFilter,
+    inspectionsDateFrom,
+    inspectionsDateTo,
+    inspectionsDebouncedSearch,
+    inspectionsSortBy,
+    inspectionsCurrentPage,
+    inspectionsCorrectResultFilter,
+    inspectionsCreatorTypeFilter,
+  ]);
+
+  const openOcrForInspectionRow = async (row) => {
+    if (!row?.id) return;
+
+    const rowIdStr = row.id.toString();
+    setLastViewedInspectionId(rowIdStr);
+
+    try {
+      await markInspectionAsViewed(row.id);
+    } catch (err) {
+      console.error("Failed to mark inspection as viewed", err);
+    }
+
+    setInspectionsDetailView({
+      row,
+      ocrData: null,
+      damageData: null,
+      windshieldData: null,
+      ocrLoading: true,
+      ocrError: "",
+      tab: inspectionsActiveTab,
+    });
+
+    try {
+      const isWindshield = inspectionsActiveTab === "wind";
+      const [ocrData, resultsData] = await Promise.allSettled([
+        getInspectionOcr(row.id),
+        isWindshield ? getWindshieldResults(row.id) : getDamageResults(row.id),
+      ]);
+
+      const ocr = ocrData.status === "fulfilled" ? ocrData.value : null;
+      const results = resultsData.status === "fulfilled" ? resultsData.value : null;
+      const ocrErr = ocrData.status === "rejected"
+        ? (ocrData.reason?.data?.detail || ocrData.reason?.message || "Unable to load inspection details.")
+        : "";
+
+      setInspectionsDetailView((prev) => prev ? {
+        ...prev,
+        ocrData: ocr,
+        damageData: isWindshield ? null : results,
+        windshieldData: isWindshield ? results : null,
+        ocrLoading: false,
+        ocrError: ocrErr,
+      } : null);
+    } catch (err) {
+      const msg = err?.data?.detail || err?.data?.error || err?.message || "Unable to load inspection details.";
+      setInspectionsDetailView((prev) => prev ? { ...prev, ocrError: msg, ocrLoading: false } : null);
+    }
+  };
 
   const refreshCurrentView = () => {
     if (selectedSupervisor) {
@@ -374,6 +830,39 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   // Summary Metrics
   const totalSupervisorsCount = supervisors.length;
   const totalSubUsersCount = supervisors.reduce((acc, curr) => acc + (curr.subUsersCount || 0), 0);
+  const totalLinksSent = supervisors.reduce((acc, curr) => acc + (curr.total_links_sent ?? 0), 0);
+  const totalClicked = supervisors.reduce((acc, curr) => acc + (curr.total_clicked ?? 0), 0);
+  const totalCompleted = supervisors.reduce((acc, curr) => acc + (curr.total_completed ?? 0), 0);
+  const totalPending = supervisors.reduce((acc, curr) => acc + (curr.pending ?? 0), 0);
+
+  if (inspectionsDetailView) {
+    if (inspectionsDetailView.tab === "wind") {
+      return (
+        <WindShieldAssessmentResult
+          inspectionRow={inspectionsDetailView.row}
+          ocrData={inspectionsDetailView.ocrData}
+          windshieldData={inspectionsDetailView.windshieldData}
+          ocrLoading={inspectionsDetailView.ocrLoading}
+          ocrError={inspectionsDetailView.ocrError}
+          onBack={() => setInspectionsDetailView(null)}
+          onRefresh={() => openOcrForInspectionRow(inspectionsDetailView.row)}
+          hideEditStatus={true}
+        />
+      );
+    }
+    return (
+      <PrePolicyAssessmentResult
+        inspectionRow={inspectionsDetailView.row}
+        ocrData={inspectionsDetailView.ocrData}
+        damageData={inspectionsDetailView.damageData}
+        ocrLoading={inspectionsDetailView.ocrLoading}
+        ocrError={inspectionsDetailView.ocrError}
+        onBack={() => setInspectionsDetailView(null)}
+        onRefresh={() => openOcrForInspectionRow(inspectionsDetailView.row)}
+        hideEditStatus={true}
+      />
+    );
+  }
 
   return (
     <div className="min-h-[600px] font-sans text-sm">
@@ -392,23 +881,59 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
       {/* --- METRICS / COUNTS CARDS (Admin Main Page Only) --- */}
       {canViewAllSupervisors && !selectedSupervisor && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-          <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
-            <p className="text-xs text-gray-500 font-medium mb-1.5">Total Supervisors</p>
-            <p className="text-3xl font-light text-gray-500">
-              {loading ? "…" : totalSupervisorsCount}
-            </p>
+        <div className="space-y-6 mb-6">
+          {/* Row 1: System Directory Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+              <p className="text-xs text-gray-500 font-medium mb-1.5">Total Supervisors</p>
+              <p className="text-3xl font-light text-gray-500">
+                {loading ? "…" : totalSupervisorsCount}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+              <p className="text-xs text-gray-500 font-medium mb-1.5">Total Sub-users</p>
+              <p className="text-3xl font-light text-gray-500">
+                {loading ? "…" : totalSubUsersCount}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+              <p className="text-xs text-gray-500 font-medium mb-1.5">Logged In Profile</p>
+              <p className="text-base font-semibold text-gray-700 truncate">{currentUser?.name || "Admin"}</p>
+              <p className="text-xs text-gray-400 truncate mt-0.5">{currentUser?.email}</p>
+            </div>
           </div>
-          <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
-            <p className="text-xs text-gray-500 font-medium mb-1.5">Total Sub-users</p>
-            <p className="text-3xl font-light text-gray-500">
-              {loading ? "…" : totalSubUsersCount}
-            </p>
-          </div>
-          <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
-            <p className="text-xs text-gray-500 font-medium mb-1.5">Logged In Profile</p>
-            <p className="text-base font-semibold text-gray-700 truncate">{currentUser?.name || "Admin"}</p>
-            <p className="text-xs text-gray-400 truncate mt-0.5">{currentUser?.email}</p>
+
+          {/* Row 2: Combined Activity Summary */}
+          <div>
+            <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">
+              Combined Activity (Sum of All Supervisors)
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+                <p className="text-xs text-gray-500 font-medium mb-1.5">Links Sent</p>
+                <p className="text-3xl font-light text-gray-500">
+                  {loading ? "…" : totalLinksSent}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+                <p className="text-xs text-gray-500 font-medium mb-1.5">Clicked</p>
+                <p className="text-3xl font-light text-gray-500">
+                  {loading ? "…" : totalClicked}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+                <p className="text-xs text-gray-500 font-medium mb-1.5">Completed</p>
+                <p className="text-3xl font-light text-gray-500">
+                  {loading ? "…" : totalCompleted}
+                </p>
+              </div>
+              <div className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
+                <p className="text-xs text-gray-500 font-medium mb-1.5">Pending</p>
+                <p className="text-3xl font-light text-gray-500">
+                  {loading ? "…" : totalPending}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -825,6 +1350,309 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                   </div>
                 )}
               </div>
+
+              {/* --- Supervisor Inspections Listing Section --- */}
+              {canViewAllSupervisors && (
+                <div className="mt-8 animate-fade-in">
+                  <div className="border-t border-gray-250 my-6"></div>
+                  
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Inspections Created by {selectedSupervisor.name} and Sub-users
+                    </h3>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {[
+                        { key: "pre", label: "Pre Inspection", d: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" },
+                        { key: "motor", label: "Motor Claim", d: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" },
+                        { key: "wind", label: "Wind Shield Claim", d: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+                      ].map(tab => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => {
+                            setInspectionsActiveTab(tab.key);
+                            setInspectionsCurrentPage(1);
+                          }}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium border transition flex-shrink-0
+                            ${inspectionsActiveTab === tab.key
+                              ? "bg-green-500 text-white border-green-500"
+                              : "bg-white text-gray-600 border-gray-300 hover:border-green-400"}`}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d={tab.d} />
+                          </svg>
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Filter Bar and Table Card */}
+                  <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
+                    
+                    {/* Filter controls */}
+                    <div className="flex items-center gap-3 p-4 border-b border-gray-100 flex-wrap">
+                      {/* Search */}
+                      <div className="flex items-center gap-2 border border-gray-300 rounded px-3 py-2 w-full sm:w-auto sm:min-w-[220px] flex-1">
+                        <SearchIcon />
+                        <input
+                          type="text"
+                          placeholder="Search by name, email,..."
+                          value={inspectionsSearch}
+                          onChange={(e) => setInspectionsSearch(e.target.value)}
+                          className="outline-none text-sm text-gray-600 placeholder-gray-400 w-full"
+                        />
+                      </div>
+
+                      {/* From Date */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium text-gray-700">From</span>
+                        <DatePicker
+                          value={inspectionsDateFrom}
+                          onChange={(val) => { setInspectionsDateFrom(val); setInspectionsCurrentPage(1); }}
+                        />
+                      </div>
+
+                      {/* To Date */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium text-gray-700">To</span>
+                        <DatePicker
+                          value={inspectionsDateTo}
+                          onChange={(val) => { setInspectionsDateTo(val); setInspectionsCurrentPage(1); }}
+                        />
+                      </div>
+
+                      {/* Status */}
+                      <SelectDropdown
+                        value={inspectionsStatusFilter}
+                        onChange={(val) => { setInspectionsStatusFilter(val); setInspectionsCurrentPage(1); }}
+                        options={STATUS_FILTER_OPTIONS}
+                        minWidth="130px"
+                      />
+
+                      {/* Review Status */}
+                      <SelectDropdown
+                        value={inspectionsCorrectResultFilter}
+                        onChange={(val) => { setInspectionsCorrectResultFilter(val); setInspectionsCurrentPage(1); }}
+                        options={["All Review Status", "Pending", "Viewed", "Accepted", "Rejected"]}
+                        minWidth="150px"
+                      />
+
+                      {/* Creator User Type */}
+                      <SelectDropdown
+                        value={inspectionsCreatorTypeFilter}
+                        onChange={(val) => { setInspectionsCreatorTypeFilter(val); setInspectionsCurrentPage(1); }}
+                        options={CREATOR_TYPE_FILTER_OPTIONS}
+                        minWidth="170px"
+                      />
+
+                      {/* Sort By */}
+                      <div className="flex items-center gap-2 sm:ml-auto text-sm">
+                        <span className="font-medium text-gray-700 whitespace-nowrap">Sort By</span>
+                        <SelectDropdown
+                          value={inspectionsSortBy}
+                          onChange={(val) => { setInspectionsSortBy(val); setInspectionsCurrentPage(1); }}
+                          options={["Newest First", "Oldest First"]}
+                          minWidth="150px"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Total Count */}
+                    <div className="flex items-center justify-end px-4 py-2 border-b border-gray-100 bg-gray-50/50">
+                      <div className="text-xs text-gray-500 font-semibold">
+                        Total Inspections: <span className="text-gray-800 font-bold">{inspectionsTotalCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Table / Loading / Empty */}
+                    {loadingInspections ? (
+                      <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                        <svg className="animate-spin h-8 w-8 text-green-500 mb-3" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span className="text-sm font-medium">Loading inspections list...</span>
+                      </div>
+                    ) : inspectionsError ? (
+                      <div className="text-center py-16 text-red-500 font-medium bg-white">
+                        {inspectionsError}
+                      </div>
+                    ) : inspectionsRows.length === 0 ? (
+                      <div className="text-center py-16 text-gray-400 bg-white">
+                        <p className="text-base font-semibold">No Inspections Found</p>
+                        <p className="text-xs mt-1">Adjust the filters or date ranges to search for inspections.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200 bg-gray-50">
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 w-12">Sr No</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer Name</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Created By</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Updated At</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700 w-32">Damage Level</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Review Status</th>
+                              <th className="px-4 py-3 text-right font-semibold text-gray-700 pr-6">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {inspectionsRows.map((row) => {
+                              const isLastViewed = lastViewedInspectionId === row.id?.toString();
+                              return (
+                                <tr
+                                  key={row.id}
+                                  className={`border-b border-gray-100 transition ${isLastViewed ? 'bg-blue-50/80 hover:bg-blue-50' : 'bg-white hover:bg-gray-50'}`}
+                                >
+                                  <td className="px-4 py-3 text-gray-500">{row.serialNumber}</td>
+                                  <td className="px-4 py-3 font-semibold text-gray-800">{row.name}</td>
+                                  <td className="px-4 py-3 text-gray-500 truncate max-w-[150px]" title={row.email}>{row.email}</td>
+                                  <td className="px-4 py-3 text-gray-600">{row.policy}</td>
+                                  <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
+                                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.date}</td>
+                                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.time}</td>
+                                  <td className="px-4 py-3 text-gray-600">
+                                    {row.updatedAt && row.updatedAt !== "—" ? (
+                                      <div className="flex flex-col text-xs">
+                                        <span className="font-medium whitespace-nowrap">{row.updatedAt.split(" ").slice(0, 3).join(" ")}</span>
+                                        <span className="text-gray-400 mt-0.5 whitespace-nowrap">{row.updatedAt.split(" ").slice(3).join(" ")}</span>
+                                      </div>
+                                    ) : (
+                                      <span>—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {row.damage ? (
+                                      <span className={`${damageColors[row.damage] || "bg-gray-400"} text-white text-xs font-semibold px-2 py-0.5 rounded`}>
+                                        {row.damage}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-300 text-xs">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {(() => {
+                                      const meta = STATUS_META[row.status];
+                                      if (!meta) {
+                                        return (
+                                          <span className="bg-gray-400 text-white text-xs font-semibold px-2 py-0.5 rounded">
+                                            {row.status || "Unknown"}
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span className={`${meta.color} text-white text-xs font-semibold px-2 py-0.5 rounded`}>
+                                          {meta.label}
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex flex-col gap-1">
+                                      {renderReviewStatus(row.correctResult)}
+                                      {row.additionalNotes && (
+                                        <span className="text-gray-400 text-xs max-w-[120px] truncate" title={row.additionalNotes}>
+                                          {row.additionalNotes}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right pr-6">
+                                    <div className="flex items-center justify-end gap-2">
+                                      {row.status === "expired" ? (
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              const resp = await regenerateInspectionLink({ unique_id: row.unique_verify_id });
+                                              setInspectionsRows(prev => prev.map(r => r.unique_verify_id === row.unique_verify_id ? {
+                                                ...r,
+                                                link: resp?.link || resp?.data?.link || r.link,
+                                                status: resp?.status || resp?.data?.status || "pending",
+                                              } : r));
+                                            } catch (err) {
+                                              alert(err?.data?.detail || err?.message || "Failed to regenerate link");
+                                            }
+                                          }}
+                                          className="text-xs bg-green-500 hover:bg-green-600 text-white font-semibold px-2 py-1 rounded transition"
+                                        >
+                                          Regenerate
+                                        </button>
+                                      ) : row.link ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => { navigator.clipboard.writeText(row.link); alert("Link copied!"); }}
+                                            className="p-1 hover:bg-gray-100 rounded text-gray-450 hover:text-green-600 transition"
+                                            title="Copy Link"
+                                          >
+                                            <CopyIcon />
+                                          </button>
+                                        </>
+                                      ) : null}
+                                      <button
+                                        type="button"
+                                        onClick={() => openOcrForInspectionRow(row)}
+                                        className="p-1 hover:bg-gray-100 rounded text-gray-450 hover:text-green-600 transition"
+                                        title="View Detailed Results"
+                                      >
+                                        <EyeIcon />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Pagination */}
+                    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50/50">
+                      <span className="text-xs text-gray-500">
+                        {loadingInspections
+                          ? "Loading..."
+                          : inspectionsTotalCount
+                            ? `Showing ${(inspectionsCurrentPage - 1) * inspectionsRows.length + 1}–${(inspectionsCurrentPage - 1) * inspectionsRows.length + inspectionsRows.length} of ${inspectionsTotalCount}`
+                            : "No inspections found"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setInspectionsCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={inspectionsCurrentPage <= 1}
+                          className="px-2.5 py-1 bg-white border border-gray-300 rounded text-xs text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 font-semibold transition"
+                        >
+                          Prev
+                        </button>
+                        <span className="text-xs text-gray-600 font-medium">
+                          Page {inspectionsCurrentPage} of {inspectionsTotalPages}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setInspectionsCurrentPage((p) => Math.min(inspectionsTotalPages, p + 1))}
+                          disabled={inspectionsCurrentPage >= inspectionsTotalPages}
+                          className="px-2.5 py-1 bg-white border border-gray-300 rounded text-xs text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 font-semibold transition"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>

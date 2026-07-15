@@ -560,7 +560,7 @@ function ImageSkeleton() {
 
 // ─── Correct / Incorrect Toggle ────────────────────────────────────────────────
 // ─── Review Status Toggle ────────────────────────────────────────────────
-function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) {
+function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hideEditStatus = false }) {
     const [correct, setCorrect] = useState(initialCorrect);
     const [notes, setNotes] = useState(initialNotes || "");
     const [isEditing, setIsEditing] = useState(false);
@@ -604,7 +604,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 no-print flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Review Status</span>
-                {!isEditing && (
+                {!isEditing && !hideEditStatus && (
                     <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
                         Edit Status
                     </button>
@@ -686,7 +686,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes }) 
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, damageData, ocrLoading, ocrError, onBack, onRefresh }) {
+export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, damageData, ocrLoading, ocrError, onBack, onRefresh, hideEditStatus = false }) {
     const [editingImage, setEditingImage] = useState(null);
     const [editedAiImage, setEditedAiImage] = useState(null);
     const [editedDamageImages, setEditedDamageImages] = useState({});
@@ -943,6 +943,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         inspectionId={inspectionRow.id}
                         initialCorrect={damageData?.review_status ?? damageData?.correct_result ?? inspectionRow.correctResult}
                         initialNotes={damageData?.additional_notes ?? inspectionRow.additionalNotes}
+                        hideEditStatus={hideEditStatus}
                     />
                 )}
 
