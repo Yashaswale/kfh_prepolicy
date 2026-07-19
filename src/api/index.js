@@ -307,3 +307,11 @@ export function markInspectionAsViewed(inspectionId) {
   });
 }
 
+export function changePassword(payload) {
+  return apiRequest(ENDPOINTS.changePassword, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+

@@ -10,6 +10,7 @@ export const ENDPOINTS = {
   createSubUser: '/users/sub-user/create/',
   updateUser: '/users/users/{user_id}/',
   deleteUser: '/users/users/{user_id}/',
+  changePassword: '/users/change-password/',
 
   // Customers
   sendInspectionLink: '/customers/send-link/',

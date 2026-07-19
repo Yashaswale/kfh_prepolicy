@@ -13,6 +13,7 @@ import {
   getWindshieldResults,
   regenerateInspectionLink,
   markInspectionAsViewed,
+  changePassword,
 } from "../api";
 import { getUser } from "../utils/auth";
 import PrePolicyAssessmentResult from "../pages/Pre-policy";
@@ -34,6 +35,12 @@ const EditIcon = () => (
 const DeleteIcon = () => (
   <svg className="w-4 h-4 text-gray-500 hover:text-red-600 transition" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
+
+const KeyIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m-5a5 5 0 11-10 0 5 5 0 0110 0zM19 12a2 2 0 11-2-2m2 2h2m-2 0V9a2 2 0 00-2-2h-3" />
   </svg>
 );
 
@@ -386,11 +393,13 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const [showCreateSubUserModal, setShowCreateSubUserModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
-  // Active item state for edit/delete
+  // Active item state for edit/delete/password change
   const [userToEdit, setUserToEdit] = useState(null);
   const [isEditingSupervisor, setIsEditingSupervisor] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [changePasswordUser, setChangePasswordUser] = useState(null);
 
   // Form Fields
   const [formName, setFormName] = useState("");
@@ -398,6 +407,9 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const [formPassword, setFormPassword] = useState("");
   const [formType, setFormType] = useState("");
   const [formSupervisorId, setFormSupervisorId] = useState("");
+  const [formChangePasswordEmail, setFormChangePasswordEmail] = useState("");
+  const [formChangePasswordNewPassword, setFormChangePasswordNewPassword] = useState("");
+  const [formChangePasswordConfirmPassword, setFormChangePasswordConfirmPassword] = useState("");
 
   // Fetch all supervisors and their sub-user lists to display total counts
   const fetchSupervisorsData = async (month = statsMonth, year = statsYear) => {
@@ -792,6 +804,40 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
     setShowDeleteModal(true);
   };
 
+  const openChangePasswordModal = (user) => {
+    setChangePasswordUser(user);
+    setFormChangePasswordEmail(user.email || "");
+    setFormChangePasswordNewPassword("");
+    setFormChangePasswordConfirmPassword("");
+    setShowChangePasswordModal(true);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (!formChangePasswordEmail || !formChangePasswordNewPassword || !formChangePasswordConfirmPassword) {
+      triggerAlert("All fields are required.", false);
+      return;
+    }
+    if (formChangePasswordNewPassword !== formChangePasswordConfirmPassword) {
+      triggerAlert("Passwords do not match.", false);
+      return;
+    }
+    setError("");
+    try {
+      await changePassword({
+        email: formChangePasswordEmail,
+        new_password: formChangePasswordNewPassword,
+        confirm_password: formChangePasswordConfirmPassword,
+      });
+      triggerAlert("Password changed successfully!");
+      setShowChangePasswordModal(false);
+      resetForms();
+    } catch (err) {
+      const msg = err?.data?.detail || err?.data?.error || err?.message || "Failed to change password.";
+      triggerAlert(msg, false);
+    }
+  };
+
   const resetForms = () => {
     setFormName("");
     setFormEmail("");
@@ -801,6 +847,10 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
     setFormSupervisorId("");
     setUserToEdit(null);
     setIsEditingSupervisor(false);
+    setFormChangePasswordEmail("");
+    setFormChangePasswordNewPassword("");
+    setFormChangePasswordConfirmPassword("");
+    setChangePasswordUser(null);
   };
 
   // Helper mapping for roles
@@ -867,17 +917,52 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   return (
     <div className="min-h-[600px] font-sans text-sm">
 
-      {/* Alert Banners */}
-      {successMsg && (
-        <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded font-medium text-sm transition-all duration-300">
-          {successMsg}
-        </div>
-      )}
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded font-medium text-sm transition-all duration-300">
-          {error}
-        </div>
-      )}
+      {/* Floating Toast Notification Container */}
+      <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        {successMsg && (
+          <div className="pointer-events-auto bg-white border border-green-100 shadow-xl rounded-xl p-4 flex items-start gap-3 animate-toast-in border-l-4 border-l-green-500">
+            <div className="text-green-500 mt-0.5">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-800">Success</p>
+              <p className="text-xs text-gray-500 mt-0.5">{successMsg}</p>
+            </div>
+            <button 
+              onClick={() => setSuccessMsg("")} 
+              className="text-gray-400 hover:text-gray-600 transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <div className="pointer-events-auto bg-white border border-red-100 shadow-xl rounded-xl p-4 flex items-start gap-3 animate-toast-in border-l-4 border-l-red-500">
+            <div className="text-red-500 mt-0.5">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-800">Error</p>
+              <p className="text-xs text-gray-500 mt-0.5">{error}</p>
+            </div>
+            <button 
+              onClick={() => setError("")} 
+              className="text-gray-400 hover:text-gray-600 transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* --- METRICS / COUNTS CARDS (Admin Main Page Only) --- */}
       {canViewAllSupervisors && !selectedSupervisor && (
@@ -1058,6 +1143,14 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                 </button>
                                 {isAdmin && (
                                   <>
+                                    <button
+                                      onClick={() => openChangePasswordModal(sup)}
+                                      title="Change Password"
+                                      className="text-xs text-green-600 hover:text-green-750 font-semibold transition flex items-center gap-1"
+                                    >
+                                      <KeyIcon />
+                                      Change Password
+                                    </button>
                                     <button
                                       onClick={() => openEditModal(sup, true)}
                                       title="Edit Supervisor"
@@ -1287,6 +1380,16 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                     </svg>
                                     Stats
                                   </button>
+                                  {isAdmin && (
+                                    <button
+                                      onClick={() => openChangePasswordModal(user)}
+                                      className="text-xs text-green-600 hover:text-green-750 font-semibold transition flex items-center gap-1"
+                                      title="Change Password"
+                                    >
+                                      <KeyIcon />
+                                      Change Password
+                                    </button>
+                                  )}
                                   {!isSupervisorAdmin && (
                                     <>
                                       <button
@@ -1969,6 +2072,86 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 5: Change Password */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg border border-gray-100 w-full max-w-md overflow-hidden animate-fade-in">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-800">Change User Password</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChangePasswordModal(false);
+                  setChangePasswordUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition text-lg"
+              >
+                &times;
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword}>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="user@example.com"
+                    value={formChangePasswordEmail}
+                    onChange={(e) => setFormChangePasswordEmail(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition bg-gray-50 cursor-not-allowed"
+                    required
+                    readOnly
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">New Password</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={formChangePasswordNewPassword}
+                    onChange={(e) => setFormChangePasswordNewPassword(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    placeholder="••••••••"
+                    value={formChangePasswordConfirmPassword}
+                    onChange={(e) => setFormChangePasswordConfirmPassword(e.target.value)}
+                    className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangePasswordModal(false);
+                    setChangePasswordUser(null);
+                  }}
+                  className="flex-1 md:flex-initial px-6 py-2.5 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 md:flex-initial px-8 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-bold transition shadow-sm"
+                >
+                  Change Password
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
