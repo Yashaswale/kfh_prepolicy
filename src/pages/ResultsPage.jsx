@@ -102,12 +102,13 @@ export default function ResultsPage() {
   // Create a minimal inspectionRow since we don't have the list data
   const mockRow = {
     id: id,
-    unique_verify_id: "",
-    name: "—",
-    email: "—",
-    policy: "—",
-    status: "—",
-    location: "—"
+    unique_verify_id: damageData?.unique_verify_id || windshieldData?.unique_verify_id || damageData?.inspection?.unique_verify_id || windshieldData?.inspection?.unique_verify_id || "",
+    name: damageData?.customer_name || windshieldData?.customer_name || damageData?.inspection?.customer_name || windshieldData?.inspection?.customer_name || "—",
+    email: damageData?.email || windshieldData?.email || damageData?.inspection?.email || windshieldData?.inspection?.email || "—",
+    policy: damageData?.policy_number || windshieldData?.policy_number || damageData?.inspection?.policy_number || windshieldData?.inspection?.policy_number || "—",
+    claim_number: damageData?.claim_number || windshieldData?.claim_number || damageData?.inspection?.claim_number || windshieldData?.inspection?.claim_number || "",
+    status: damageData?.status || windshieldData?.status || damageData?.inspection?.status || windshieldData?.inspection?.status || "—",
+    location: damageData?.location || windshieldData?.location || damageData?.inspection?.location || windshieldData?.inspection?.location || "—"
   };
 
   if (tab === "wind") {

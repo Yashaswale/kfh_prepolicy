@@ -765,10 +765,11 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
     const isAdmin = currentUser?.is_staff === true;
 
     // Extract data from props — inspectionRow has customer/row info, ocrData has OCR results
-    const customerName = inspectionRow?.name || "—";
-    const customerEmail = inspectionRow?.email || "—";
-    const policyNumber = inspectionRow?.policy || "—";
-    const location = inspectionRow?.location || "—";
+    const customerName = inspectionRow?.name || damageData?.customer_name || damageData?.inspection?.customer_name || "—";
+    const customerEmail = inspectionRow?.email || damageData?.email || damageData?.inspection?.email || "—";
+    const policyNumber = inspectionRow?.policy || damageData?.policy_number || damageData?.inspection?.policy_number || "—";
+    const location = inspectionRow?.location || damageData?.location || damageData?.inspection?.location || "—";
+    const claimNumber = inspectionRow?.claim_number || inspectionRow?.claimNumber || damageData?.claim_number || damageData?.inspection?.claim_number || "—";
     const fakeImgDetected = inspectionRow?.fakeImgDetection || inspectionRow?.fake_img_detection || damageData?.fake_img_detection || false;
 
     // ── Parse OCR array response ──────────────────────────────────────────────────
@@ -951,13 +952,14 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                 <SectionCard title="Customer Details">
                     {ocrLoading ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
-                            {Array.from({ length: 4 }).map((_, i) => <FieldSkeleton key={i} />)}
+                            {Array.from({ length: 6 }).map((_, i) => <FieldSkeleton key={i} />)}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
                             <FieldRow label="Full Name" value={customerName} />
                             <FieldRow label="Email Address" value={customerEmail} />
                             <FieldRow label="Policy No." value={policyNumber} />
+                            <FieldRow label="Claim No." value={claimNumber} />
                             <FieldRow label="Location" value={location} />
                             <FieldRow label="Status" value={inspectionRow?.status || "—"} />
                             {fakeImgDetected && (

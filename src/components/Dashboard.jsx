@@ -487,6 +487,7 @@ export default function App() {
               name: item.customer_name ?? "-",
               email: item.email ?? "",
               policy: item.policy_number ?? "",
+              claim_number: item.claim_number ?? "",
               date: dateStr,
               time: timeStr,
               updatedAt: updatedAtStr,
