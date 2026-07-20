@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { editInspectionOcr, editDamageAi, reassessDamageResult, editCorrectIncorrectResult, rotateDamageMedia } from "../api";
+import { editInspectionOcr, editDamageAi, reassessDamageResult, editCorrectIncorrectResult, rotateDamageMedia, reassessMedia } from "../api";
 import { getUser } from "../utils/auth";
 
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
@@ -694,7 +694,10 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
     const [savingEdit, setSavingEdit] = useState(false);
     const [reassessing, setReassessing] = useState(false);
     const [showReassessModal, setShowReassessModal] = useState(false);
-    const [reassessRotation, setReassessRotation] = useState(false);
+    const [reassessLicensePlate, setReassessLicensePlate] = useState(false);
+    const [reassessChassisNo, setReassessChassisNo] = useState(false);
+    const [reassessVehicleDamage, setReassessVehicleDamage] = useState(true);
+    const [reassessRotation, setReassessRotation] = useState(true);
     const [reassessmentMsg, setReassessmentMsg] = useState("");
     const printRef = useRef(null);
 
@@ -747,12 +750,36 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
         setReassessing(true);
         setReassessmentMsg("");
         try {
-            await reassessDamageResult({ 
-                unique_id: inspectionRow.unique_verify_id,
-                rotation: reassessRotation
-            });
+            const promises = [];
+            if (reassessVehicleDamage) {
+                promises.push(reassessDamageResult({ 
+                    unique_id: inspectionRow.unique_verify_id,
+                    rotation: reassessRotation
+                }));
+            }
+            if (reassessLicensePlate) {
+                promises.push(reassessMedia({
+                    unique_id: inspectionRow.unique_verify_id,
+                    type: "license_plate"
+                }));
+            }
+            if (reassessChassisNo) {
+                promises.push(reassessMedia({
+                    unique_id: inspectionRow.unique_verify_id,
+                    type: "chassis_no"
+                }));
+            }
+
+            if (promises.length === 0) {
+                setReassessmentMsg("No reassessment option selected.");
+                setTimeout(() => setReassessmentMsg(""), 3000);
+                return;
+            }
+
+            await Promise.all(promises);
             setReassessmentMsg("Reassessment started successfully!");
             setTimeout(() => setReassessmentMsg(""), 3000);
+            if (onRefresh) onRefresh();
         } catch (err) {
             console.error('[PrePolicy] Reassessment error:', err);
             setReassessmentMsg(err?.data?.detail || err?.message || "Reassessment failed");
@@ -845,7 +872,13 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                     <div className="flex items-center gap-3">
                         {isAdmin && (
                             <button
-                                onClick={() => setShowReassessModal(true)}
+                                onClick={() => {
+                                    setReassessLicensePlate(false);
+                                    setReassessChassisNo(false);
+                                    setReassessVehicleDamage(true);
+                                    setReassessRotation(true);
+                                    setShowReassessModal(true);
+                                }}
                                 disabled={reassessing}
                                 className="no-print flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-blue-200 disabled:opacity-50"
                             >
@@ -885,17 +918,70 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             Are you sure you want to start a new assessment for this claim?
                         </p>
                         
-                        <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
-                            <div>
-                                <span className="text-sm font-bold text-gray-800 block">Apply Rotation</span>
-                                <span className="text-xs text-gray-500">Rotate images automatically</span>
+                        <div className="space-y-3 mb-6">
+                            {/* License Plate Toggle */}
+                            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div>
+                                    <span className="text-sm font-bold text-gray-800 block">License Plate</span>
+                                    <span className="text-xs text-gray-500">Reassess the license plate text</span>
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => setReassessLicensePlate(!reassessLicensePlate)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessLicensePlate ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reassessLicensePlate ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => setReassessRotation(!reassessRotation)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessRotation ? 'bg-blue-600' : 'bg-gray-300'}`}
-                            >
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reassessRotation ? 'translate-x-6' : 'translate-x-1'}`} />
-                            </button>
+
+                            {/* Chassis No Toggle */}
+                            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div>
+                                    <span className="text-sm font-bold text-gray-800 block">Chassis No</span>
+                                    <span className="text-xs text-gray-500">Reassess the chassis number text</span>
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => setReassessChassisNo(!reassessChassisNo)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessChassisNo ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reassessChassisNo ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            {/* Vehicle Damage Toggle */}
+                            <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div>
+                                    <span className="text-sm font-bold text-gray-800 block">Vehicle Damage</span>
+                                    <span className="text-xs text-gray-500">Reassess vehicle damage detection</span>
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        const newValue = !reassessVehicleDamage;
+                                        setReassessVehicleDamage(newValue);
+                                    }}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessVehicleDamage ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reassessVehicleDamage ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            {/* Auto Rotation Toggle */}
+                            <div className={`flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 transition-opacity ${!reassessVehicleDamage ? 'opacity-50' : ''}`}>
+                                <div>
+                                    <span className="text-sm font-bold text-gray-800 block">Auto Rotation</span>
+                                    <span className="text-xs text-gray-500">Rotate images automatically</span>
+                                </div>
+                                <button 
+                                    type="button"
+                                    disabled={!reassessVehicleDamage}
+                                    onClick={() => setReassessRotation(!reassessRotation)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${!reassessVehicleDamage ? 'bg-gray-200 cursor-not-allowed' : reassessRotation ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reassessRotation && reassessVehicleDamage ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex gap-3">

@@ -16,6 +16,8 @@ async function doFetch(url, options) {
   return data;
 }
 
+let activeRefreshPromise = null;
+
 async function withAuthAndRefresh(path, options, { auth, isFormData }) {
   const url = `${API_BASE_URL}${path}`;
   const baseHeaders = options.headers || {};
@@ -42,32 +44,57 @@ async function withAuthAndRefresh(path, options, { auth, isFormData }) {
       throw error;
     }
 
+    if (activeRefreshPromise) {
+      try {
+        const newAccessToken = await activeRefreshPromise;
+        const retryHeaders = {
+          ...finalHeaders,
+          Authorization: `Bearer ${newAccessToken}`,
+        };
+        return await doFetch(url, { ...requestOptions, headers: retryHeaders });
+      } catch {
+        throw error;
+      }
+    }
+
     const refresh = getRefreshToken();
     if (!refresh) {
       clearAuthData();
       throw error;
     }
 
-    try {
-      const refreshData = await doFetch(`${API_BASE_URL}${ENDPOINTS.refreshToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh }),
-      });
+    activeRefreshPromise = (async () => {
+      try {
+        const refreshData = await doFetch(`${API_BASE_URL}${ENDPOINTS.refreshToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh }),
+        });
 
-      if (refreshData?.access) {
-        setTokens({ access: refreshData.access, refresh });
-        const retryHeaders = {
-          ...finalHeaders,
-          Authorization: `Bearer ${refreshData.access}`,
-        };
-        return await doFetch(url, { ...requestOptions, headers: retryHeaders });
+        if (refreshData?.access) {
+          setTokens({ access: refreshData.access, refresh: refreshData.refresh || refresh });
+          return refreshData.access;
+        } else {
+          throw new Error('No access token returned');
+        }
+      } catch (err) {
+        clearAuthData();
+        throw err;
+      } finally {
+        activeRefreshPromise = null;
       }
-    } catch {
-      clearAuthData();
-    }
+    })();
 
-    throw error;
+    try {
+      const newAccessToken = await activeRefreshPromise;
+      const retryHeaders = {
+        ...finalHeaders,
+        Authorization: `Bearer ${newAccessToken}`,
+      };
+      return await doFetch(url, { ...requestOptions, headers: retryHeaders });
+    } catch {
+      throw error;
+    }
   }
 }
 

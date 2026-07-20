@@ -30,6 +30,7 @@ export const ENDPOINTS = {
   editDamageAiBase: '/customers/inspection/edit-damage-ai',
   editWindshieldAiBase: '/customers/inspection/edit-windshield-ai',
   reassessDamageResult: '/customers/inspection/damage/reassess/',
+  reassessMedia: '/customers/inspection/reassess-media/',
   editCorrectIncorrectResult: '/customers/inspections/{inspection_id}/mark-result/',
   markAsViewed: '/customers/inspection/{inspection_id}/mark-as-viewed/',
   rotateDamageMedia: '/customers/inspection-damage-media/{media_id}/rotate/',

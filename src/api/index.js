@@ -117,6 +117,14 @@ export function reassessDamageResult(payload) {
   });
 }
 
+export function reassessMedia(payload) {
+  return apiRequest(ENDPOINTS.reassessMedia, {
+    method: 'POST',
+    body: payload,
+    auth: false,
+  });
+}
+
 export function editCorrectIncorrectResult(inspectionId, payload) {
   if (!inspectionId) {
     return Promise.reject(new Error('Inspection id is required'));

@@ -1600,6 +1600,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer Name</th>
                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
+                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Claim Number</th>
                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Created By</th>
                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
                               <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
@@ -1622,6 +1623,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                   <td className="px-4 py-3 font-semibold text-gray-800">{row.name}</td>
                                   <td className="px-4 py-3 text-gray-500 truncate max-w-[150px]" title={row.email}>{row.email}</td>
                                   <td className="px-4 py-3 text-gray-600">{row.policy}</td>
+                                  <td className="px-4 py-3 text-gray-600">{row.claim_number || "—"}</td>
                                   <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
                                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.date}</td>
                                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.time}</td>

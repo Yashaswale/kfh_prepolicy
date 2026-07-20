@@ -848,6 +848,7 @@ export default function App() {
                   </th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Claim Number</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Created By</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
@@ -875,6 +876,7 @@ export default function App() {
                       <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
                       <td className="px-4 py-3 text-gray-500">{row.email}</td>
                       <td className="px-4 py-3 text-gray-600">{row.policy}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.claim_number || "—"}</td>
                       <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
                       <td className="px-4 py-3 text-gray-600">{row.date}</td>
                       <td className="px-4 py-3 text-gray-600">{row.time}</td>
