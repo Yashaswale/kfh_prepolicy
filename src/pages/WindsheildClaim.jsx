@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { editInspectionOcr, uploadWindshieldImages, reassessDamageResult, editWindshieldAi, editCorrectIncorrectResult, rotateDamageMedia } from "../api";
+import { editInspectionOcr, uploadWindshieldImages, reassessDamageResult, editWindshieldAi, editCorrectIncorrectResult, rotateDamageMedia, editCustomerDetails } from "../api";
 import { getUser } from "../utils/auth";
 // ─── Helpers ───────────────────────────────────────────────────────────────────────────────
 function dataUrlToBlob(dataUrl) {
@@ -556,10 +556,15 @@ function EditableFieldRow({ label, value, mediaId, onSaved }) {
 }
 
 // ─── Section Card ──────────────────────────────────────────────────────────────
-function SectionCard({ title, children }) {
+function SectionCard({ title, action, children }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-7 mb-6">
-      {title && <h2 className="text-base font-bold text-gray-900 uppercase tracking-widest mb-6 pb-3 border-b border-gray-100">{title}</h2>}
+      {title && (
+        <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-100">
+          <h2 className="text-base font-bold text-gray-900 uppercase tracking-widest">{title}</h2>
+          {action && <div className="no-print">{action}</div>}
+        </div>
+      )}
       {children}
     </div>
   );
@@ -713,7 +718,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack, onRefresh, hideEditStatus = false }) {
+export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack, onRefresh, hideEditStatus = false, onDetailsUpdated }) {
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
   const [editedWsImages, setEditedWsImages] = useState({});
@@ -724,6 +729,45 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
   const [reassessRotation, setReassessRotation] = useState(false);
   const [reassessmentMsg, setReassessmentMsg] = useState("");
   const printRef = useRef(null);
+
+  // Customer details edit states
+  const [isEditingDetails, setIsEditingDetails] = useState(false);
+  const [editPolicy, setEditPolicy] = useState("");
+  const [editClaim, setEditClaim] = useState("");
+  const [detailsSaving, setDetailsSaving] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+
+  const handleStartEditDetails = () => {
+    setEditPolicy(policyNumber === "—" ? "" : policyNumber);
+    setEditClaim(claimNumber === "—" ? "" : claimNumber);
+    setDetailsError("");
+    setIsEditingDetails(true);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!inspectionRow?.id) return;
+    setDetailsSaving(true);
+    setDetailsError("");
+    try {
+      await editCustomerDetails(inspectionRow.id, {
+        policy_number: editPolicy,
+        claim_number: editClaim
+      });
+      setIsEditingDetails(false);
+      const updatedRow = { ...inspectionRow, policy: editPolicy, claim_number: editClaim };
+      if (onDetailsUpdated) {
+        onDetailsUpdated(editPolicy, editClaim);
+      }
+      if (onRefresh) {
+        onRefresh(updatedRow);
+      }
+    } catch (err) {
+      console.error('[WindshieldResult] editCustomerDetails error:', err);
+      setDetailsError(err?.data?.detail || err?.message || "Failed to update details");
+    } finally {
+      setDetailsSaving(false);
+    }
+  };
 
   const handleExportPDF = () => {
     window.print();
@@ -791,12 +835,12 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
   const currentUser = getUser();
   const isAdmin = currentUser?.is_staff === true;
 
-  // Extract data from props — inspectionRow has customer/row info, ocrData has OCR results
-  const customerName = inspectionRow?.name || windshieldData?.customer_name || windshieldData?.inspection?.customer_name || "—";
-  const customerEmail = inspectionRow?.email || windshieldData?.email || windshieldData?.inspection?.email || "—";
-  const policyNumber = inspectionRow?.policy || windshieldData?.policy_number || windshieldData?.inspection?.policy_number || "—";
-  const location = inspectionRow?.location || windshieldData?.location || windshieldData?.inspection?.location || "—";
-  const claimNumber = inspectionRow?.claim_number || inspectionRow?.claimNumber || windshieldData?.claim_number || windshieldData?.inspection?.claim_number || "—";
+  // Extract data from props — prioritizing detailed data over parent list row
+  const customerName = windshieldData?.customer_name || windshieldData?.inspection?.customer_name || inspectionRow?.name || "—";
+  const customerEmail = windshieldData?.email || windshieldData?.inspection?.email || inspectionRow?.email || "—";
+  const policyNumber = windshieldData?.policy_number || windshieldData?.inspection?.policy_number || inspectionRow?.policy || "—";
+  const location = windshieldData?.location || windshieldData?.inspection?.location || inspectionRow?.location || "—";
+  const claimNumber = windshieldData?.claim_number || windshieldData?.inspection?.claim_number || inspectionRow?.claim_number || inspectionRow?.claimNumber || "—";
   const fakeImgDetected = inspectionRow?.fakeImgDetection || inspectionRow?.fake_img_detection || windshieldData?.fake_img_detection || false;
 
   // ── Parse OCR array response ──────────────────────────────────────────────────
@@ -973,7 +1017,49 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
         )}
 
         {/* Customer Details */}
-        <SectionCard title="Customer Details">
+        <SectionCard 
+          title="Customer Details"
+          action={
+            !isEditingDetails ? (
+              <button
+                onClick={handleStartEditDetails}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900 text-xs font-semibold rounded-lg transition-all"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                </svg>
+                Edit Details
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSaveDetails}
+                  disabled={detailsSaving}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-50"
+                >
+                  {detailsSaving ? (
+                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                  Save
+                </button>
+                <button
+                  onClick={() => setIsEditingDetails(false)}
+                  disabled={detailsSaving}
+                  className="px-3 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-xs font-semibold rounded-lg transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            )
+          }
+        >
           {ocrLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
               {Array.from({ length: 6 }).map((_, i) => <FieldSkeleton key={i} />)}
@@ -982,8 +1068,39 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
               <FieldRow label="Full Name" value={customerName} />
               <FieldRow label="Email Address" value={customerEmail} />
-              <FieldRow label="Policy No." value={policyNumber} />
-              <FieldRow label="Claim No." value={claimNumber} />
+              
+              {isEditingDetails ? (
+                <>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-gray-600 w-40 shrink-0">Policy No.</span>
+                    <input
+                      type="text"
+                      value={editPolicy}
+                      onChange={(e) => setEditPolicy(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveDetails(); if (e.key === "Escape") setIsEditingDetails(false); }}
+                      className="flex-1 border border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 outline-none transition-all"
+                      disabled={detailsSaving}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-gray-600 w-40 shrink-0">Claim No.</span>
+                    <input
+                      type="text"
+                      value={editClaim}
+                      onChange={(e) => setEditClaim(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleSaveDetails(); if (e.key === "Escape") setIsEditingDetails(false); }}
+                      className="flex-1 border border-green-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 rounded-lg px-4 py-2.5 text-sm text-gray-800 outline-none transition-all"
+                      disabled={detailsSaving}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <FieldRow label="Policy No." value={policyNumber} />
+                  <FieldRow label="Claim No." value={claimNumber} />
+                </>
+              )}
+              
               <FieldRow label="Location" value={location} />
               <FieldRow label="Status" value={inspectionRow?.status || "—"} />
               {fakeImgDetected && (
@@ -991,6 +1108,11 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                   label="Fake Image detected"
                   value={<span className="text-red-600 font-bold uppercase tracking-wider">Yes</span>}
                 />
+              )}
+              {detailsError && (
+                <div className="col-span-2 text-red-500 text-xs mt-2 px-4 py-2 bg-red-50 border border-red-150 rounded-lg">
+                  {detailsError}
+                </div>
               )}
             </div>
           )}

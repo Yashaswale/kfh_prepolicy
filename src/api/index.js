@@ -322,4 +322,16 @@ export function changePassword(payload) {
   });
 }
 
+export function editCustomerDetails(id, payload) {
+  if (!id) {
+    return Promise.reject(new Error('Inspection id is required to edit details'));
+  }
+  const path = `/customers/inspections/edit-details/${id}/`;
+  return apiRequest(path, {
+    method: 'PUT',
+    body: payload,
+  });
+}
+
+
 

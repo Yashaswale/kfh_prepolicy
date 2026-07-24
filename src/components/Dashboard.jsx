@@ -600,7 +600,18 @@ export default function App() {
           ocrLoading={detailView.ocrLoading}
           ocrError={detailView.ocrError}
           onBack={() => setDetailView(null)}
-          onRefresh={() => openOcrForRow(detailView.row)}
+          onRefresh={(updatedRow) => openOcrForRow(updatedRow || detailView.row)}
+          onDetailsUpdated={(newPolicy, newClaim) => {
+            setDetailView(prev => prev ? {
+              ...prev,
+              row: { ...prev.row, policy: newPolicy, claim_number: newClaim }
+            } : null);
+            setRows(prevRows => prevRows.map(r =>
+              r.id === detailView.row.id
+                ? { ...r, policy: newPolicy, claim_number: newClaim }
+                : r
+            ));
+          }}
         />
       );
     }
@@ -613,7 +624,18 @@ export default function App() {
         ocrLoading={detailView.ocrLoading}
         ocrError={detailView.ocrError}
         onBack={() => setDetailView(null)}
-        onRefresh={() => openOcrForRow(detailView.row)}
+        onRefresh={(updatedRow) => openOcrForRow(updatedRow || detailView.row)}
+        onDetailsUpdated={(newPolicy, newClaim) => {
+          setDetailView(prev => prev ? {
+            ...prev,
+            row: { ...prev.row, policy: newPolicy, claim_number: newClaim }
+          } : null);
+          setRows(prevRows => prevRows.map(r =>
+            r.id === detailView.row.id
+              ? { ...r, policy: newPolicy, claim_number: newClaim }
+              : r
+          ));
+        }}
       />
     );
   }
@@ -876,7 +898,7 @@ export default function App() {
                       <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
                       <td className="px-4 py-3 text-gray-500">{row.email}</td>
                       <td className="px-4 py-3 text-gray-600">{row.policy}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.claim_number || "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.claim_number}</td>
                       <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
                       <td className="px-4 py-3 text-gray-600">{row.date}</td>
                       <td className="px-4 py-3 text-gray-600">{row.time}</td>

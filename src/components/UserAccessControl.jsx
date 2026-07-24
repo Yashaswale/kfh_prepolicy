@@ -434,7 +434,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
   const fetchSupervisorSummary = async (supervisorId, month, year) => {
     setLoadingSummary(true);
-    
+
     // 1. Fetch Supervisor's own summary
     try {
       const data = await getAccountSummary({ user_id: supervisorId, month, year });
@@ -550,7 +550,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
             const dt = new Date(item.created_at);
             dateStr = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
             timeStr = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-          } catch (_) {}
+          } catch (_) { }
         }
 
         let updatedAtStr = "—";
@@ -560,7 +560,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
             const d = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
             const t = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
             updatedAtStr = `${d} ${t}`;
-          } catch (_) {}
+          } catch (_) { }
         }
 
         return {
@@ -896,8 +896,19 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
           ocrLoading={inspectionsDetailView.ocrLoading}
           ocrError={inspectionsDetailView.ocrError}
           onBack={() => setInspectionsDetailView(null)}
-          onRefresh={() => openOcrForInspectionRow(inspectionsDetailView.row)}
+          onRefresh={(updatedRow) => openOcrForInspectionRow(updatedRow || inspectionsDetailView.row)}
           hideEditStatus={true}
+          onDetailsUpdated={(newPolicy, newClaim) => {
+            setInspectionsDetailView(prev => prev ? {
+              ...prev,
+              row: { ...prev.row, policy: newPolicy, claim_number: newClaim }
+            } : null);
+            setInspectionsRows(prevRows => prevRows.map(r =>
+              r.id === inspectionsDetailView.row.id
+                ? { ...r, policy: newPolicy, claim_number: newClaim }
+                : r
+            ));
+          }}
         />
       );
     }
@@ -909,8 +920,19 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         ocrLoading={inspectionsDetailView.ocrLoading}
         ocrError={inspectionsDetailView.ocrError}
         onBack={() => setInspectionsDetailView(null)}
-        onRefresh={() => openOcrForInspectionRow(inspectionsDetailView.row)}
+        onRefresh={(updatedRow) => openOcrForInspectionRow(updatedRow || inspectionsDetailView.row)}
         hideEditStatus={true}
+        onDetailsUpdated={(newPolicy, newClaim) => {
+          setInspectionsDetailView(prev => prev ? {
+            ...prev,
+            row: { ...prev.row, policy: newPolicy, claim_number: newClaim }
+          } : null);
+          setInspectionsRows(prevRows => prevRows.map(r =>
+            r.id === inspectionsDetailView.row.id
+              ? { ...r, policy: newPolicy, claim_number: newClaim }
+              : r
+          ));
+        }}
       />
     );
   }
@@ -924,15 +946,15 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
           <div className="pointer-events-auto bg-white border border-green-100 shadow-xl rounded-xl p-4 flex items-start gap-3 animate-toast-in border-l-4 border-l-green-500">
             <div className="text-green-500 mt-0.5">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-gray-800">Success</p>
               <p className="text-xs text-gray-500 mt-0.5">{successMsg}</p>
             </div>
-            <button 
-              onClick={() => setSuccessMsg("")} 
+            <button
+              onClick={() => setSuccessMsg("")}
               className="text-gray-400 hover:text-gray-600 transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -946,15 +968,15 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
           <div className="pointer-events-auto bg-white border border-red-100 shadow-xl rounded-xl p-4 flex items-start gap-3 animate-toast-in border-l-4 border-l-red-500">
             <div className="text-red-500 mt-0.5">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-gray-800">Error</p>
               <p className="text-xs text-gray-500 mt-0.5">{error}</p>
             </div>
-            <button 
-              onClick={() => setError("")} 
+            <button
+              onClick={() => setError("")}
               className="text-gray-400 hover:text-gray-600 transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1459,7 +1481,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
               {canViewAllSupervisors && (
                 <div className="mt-8 animate-fade-in">
                   <div className="border-t border-gray-250 my-6"></div>
-                  
+
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Inspections Created by {selectedSupervisor.name} and Sub-users
@@ -1497,7 +1519,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                   {/* Filter Bar and Table Card */}
                   <div className="bg-white rounded border border-gray-200 shadow-sm overflow-hidden">
-                    
+
                     {/* Filter controls */}
                     <div className="flex items-center gap-3 p-4 border-b border-gray-100 flex-wrap">
                       {/* Search */}
@@ -1623,7 +1645,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                   <td className="px-4 py-3 font-semibold text-gray-800">{row.name}</td>
                                   <td className="px-4 py-3 text-gray-500 truncate max-w-[150px]" title={row.email}>{row.email}</td>
                                   <td className="px-4 py-3 text-gray-600">{row.policy}</td>
-                                  <td className="px-4 py-3 text-gray-600">{row.claim_number || "—"}</td>
+                                  <td className="px-4 py-3 text-gray-600">{row.claim_number}</td>
                                   <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
                                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.date}</td>
                                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{row.time}</td>
