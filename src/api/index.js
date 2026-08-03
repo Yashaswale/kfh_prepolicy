@@ -222,6 +222,20 @@ export function rotateDamageMedia(mediaId, payload) {
   });
 }
 
+export function rotateInspectionMedia(mediaId, payload) {
+  if (!mediaId) {
+    return Promise.reject(new Error('Media id is required to rotate image'));
+  }
+  let path = ENDPOINTS.rotateInspectionMedia.replace('{media_id}', mediaId);
+  if (!path.startsWith('/')) {
+    path = '/' + path;
+  }
+  return apiRequest(path, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 // User Access Control APIs
 export function listSupervisors() {
   return apiRequest(ENDPOINTS.listSupervisors, { method: 'GET' });

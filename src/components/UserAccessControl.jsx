@@ -135,8 +135,31 @@ const CALENDAR_WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function DatePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
-  const [viewDate, setViewDate] = useState(value ? new Date(value) : new Date());
   const ref = useRef(null);
+
+  // Helper to parse 'YYYY-MM-DD' string safely without timezone shifts
+  const parseLocalDate = (dateStr) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return null;
+    return {
+      year: parseInt(parts[0], 10),
+      month: parseInt(parts[1], 10) - 1, // 0-indexed month
+      day: parseInt(parts[2], 10)
+    };
+  };
+
+  const getInitialViewDate = () => {
+    if (value) {
+      const parsed = parseLocalDate(value);
+      if (parsed) {
+        return new Date(parsed.year, parsed.month, parsed.day);
+      }
+    }
+    return new Date();
+  };
+
+  const [viewDate, setViewDate] = useState(getInitialViewDate);
 
   useEffect(() => {
     const handler = (e) => {
@@ -148,8 +171,9 @@ function DatePicker({ value, onChange }) {
 
   const formatDisplay = (d) => {
     if (!d) return "dd-mm-yyyy";
-    const date = new Date(d);
-    return `${String(date.getDate()).padStart(2, "0")}-${String(date.getMonth() + 1).padStart(2, "0")}-${date.getFullYear()}`;
+    const parsed = parseLocalDate(d);
+    if (!parsed) return "dd-mm-yyyy";
+    return `${String(parsed.day).padStart(2, "0")}-${String(parsed.month + 1).padStart(2, "0")}-${parsed.year}`;
   };
 
   const year = viewDate.getFullYear();
@@ -161,15 +185,18 @@ function DatePicker({ value, onChange }) {
   const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
 
   const selectDay = (day) => {
-    const sel = new Date(year, month, day);
-    onChange(sel.toISOString().split("T")[0]);
+    const yyyy = year;
+    const mm = String(month + 1).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    onChange(`${yyyy}-${mm}-${dd}`);
     setOpen(false);
   };
 
   const isSelected = (day) => {
     if (!value) return false;
-    const d = new Date(value);
-    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+    const parsed = parseLocalDate(value);
+    if (!parsed) return false;
+    return parsed.year === year && parsed.month === month && parsed.day === day;
   };
 
   const isToday = (day) => {

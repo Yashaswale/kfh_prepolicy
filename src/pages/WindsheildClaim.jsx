@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { editInspectionOcr, uploadWindshieldImages, reassessDamageResult, editWindshieldAi, editCorrectIncorrectResult, rotateDamageMedia, editCustomerDetails } from "../api";
+import { editInspectionOcr, uploadWindshieldImages, reassessDamageResult, editWindshieldAi, editCorrectIncorrectResult, rotateDamageMedia, rotateInspectionMedia, editCustomerDetails } from "../api";
 import { getUser } from "../utils/auth";
 // ─── Helpers ───────────────────────────────────────────────────────────────────────────────
 function dataUrlToBlob(dataUrl) {
@@ -275,7 +275,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 }
 
 // ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
-function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose, onRotateSuccess }) {
+function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, isInspectionMedia, onClose, onRotateSuccess }) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [savingRotate, setSavingRotate] = useState(false);
@@ -338,18 +338,25 @@ function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose,
     setSavingRotate(true);
     let normalizedRotation = rotation % 360;
     if (normalizedRotation < 0) normalizedRotation += 360;
-    
+
     if (normalizedRotation === 0) {
       setSavingRotate(false);
       return;
     }
 
     try {
-      await rotateDamageMedia(mediaId, {
-        rotate_angle: normalizedRotation,
-        direction: "right",
-        rotate_target: rotateTarget || "original"
-      });
+      if (isInspectionMedia) {
+        await rotateInspectionMedia(mediaId, {
+          rotate_angle: normalizedRotation,
+          direction: "right"
+        });
+      } else {
+        await rotateDamageMedia(mediaId, {
+          rotate_angle: normalizedRotation,
+          direction: "right",
+          rotate_target: rotateTarget || "original"
+        });
+      }
       setRotation(0);
       if (onRotateSuccess) {
         onRotateSuccess();
@@ -671,11 +678,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
                 <button
                   key={key}
                   onClick={() => setCorrect(key)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors border ${
-                    currentStatus === key
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors border ${currentStatus === key
                       ? cfg.activeBg + " border-transparent"
                       : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   {cfg.label}
                 </button>
@@ -818,7 +824,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
     setReassessing(true);
     setReassessmentMsg("");
     try {
-      await reassessDamageResult({ 
+      await reassessDamageResult({
         unique_id: inspectionRow.unique_verify_id,
         rotation: reassessRotation
       });
@@ -952,13 +958,13 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             <p className="text-gray-500 text-sm mb-6">
               Are you sure you want to start a new assessment for this windshield claim?
             </p>
-            
+
             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
               <div>
                 <span className="text-sm font-bold text-gray-800 block">Apply Rotation</span>
                 <span className="text-xs text-gray-500">Rotate images automatically</span>
               </div>
-              <button 
+              <button
                 onClick={() => setReassessRotation(!reassessRotation)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessRotation ? 'bg-blue-600' : 'bg-gray-300'}`}
               >
@@ -967,13 +973,13 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             </div>
 
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowReassessModal(false)}
                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleReassessment}
                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
               >
@@ -1017,7 +1023,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
         )}
 
         {/* Customer Details */}
-        <SectionCard 
+        <SectionCard
           title="Customer Details"
           action={
             !isEditingDetails ? (
@@ -1068,7 +1074,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
               <FieldRow label="Full Name" value={customerName} />
               <FieldRow label="Email Address" value={customerEmail} />
-              
+
               {isEditingDetails ? (
                 <>
                   <div className="flex items-center gap-4">
@@ -1100,7 +1106,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                   <FieldRow label="Claim No." value={claimNumber} />
                 </>
               )}
-              
+
               <FieldRow label="Location" value={location} />
               <FieldRow label="Status" value={inspectionRow?.status || "—"} />
               {fakeImgDetected && (
@@ -1139,7 +1145,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
               <div>
                 <h3 className="text-sm font-bold text-gray-900 mb-3">Plate No</h3>
                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                  onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate' })}>
+                  onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate', mediaId: licensePlateEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                   {licensePlateImage ? (
                     <img src={licensePlateImage} alt="License plate" className="w-full h-full object-cover" />
                   ) : (
@@ -1161,7 +1167,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
               <div>
                 <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                  onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number' })}>
+                  onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number', mediaId: chassisEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                   {chassisImage ? (
                     <img src={chassisImage} alt="Chassis number" className="w-full h-full object-cover" />
                   ) : (
@@ -1314,6 +1320,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
           label={fullscreenImage.label}
           mediaId={fullscreenImage.mediaId}
           rotateTarget={fullscreenImage.rotateTarget}
+          isInspectionMedia={fullscreenImage.isInspectionMedia}
           onClose={() => setFullscreenImage(null)}
           onRotateSuccess={() => {
             setFullscreenImage(null);

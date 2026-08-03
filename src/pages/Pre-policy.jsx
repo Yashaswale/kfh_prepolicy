@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { editInspectionOcr, editDamageAi, reassessDamageResult, editCorrectIncorrectResult, rotateDamageMedia, reassessMedia, editCustomerDetails } from "../api";
+import { editInspectionOcr, editDamageAi, reassessDamageResult, editCorrectIncorrectResult, rotateDamageMedia, rotateInspectionMedia, reassessMedia, editCustomerDetails } from "../api";
 import { getUser } from "../utils/auth";
 
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
@@ -248,7 +248,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 }
 
 // ─── Fullscreen Image Viewer Modal ─────────────────────────────────────────────
-function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose, onRotateSuccess }) {
+function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, isInspectionMedia, onClose, onRotateSuccess }) {
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
     const [savingRotate, setSavingRotate] = useState(false);
@@ -311,18 +311,25 @@ function FullscreenImageModal({ imageUrl, label, mediaId, rotateTarget, onClose,
         setSavingRotate(true);
         let normalizedRotation = rotation % 360;
         if (normalizedRotation < 0) normalizedRotation += 360;
-        
+
         if (normalizedRotation === 0) {
             setSavingRotate(false);
             return;
         }
 
         try {
-            await rotateDamageMedia(mediaId, {
-                rotate_angle: normalizedRotation,
-                direction: "right",
-                rotate_target: rotateTarget || "original"
-            });
+            if (isInspectionMedia) {
+                await rotateInspectionMedia(mediaId, {
+                    rotate_angle: normalizedRotation,
+                    direction: "right"
+                });
+            } else {
+                await rotateDamageMedia(mediaId, {
+                    rotate_angle: normalizedRotation,
+                    direction: "right",
+                    rotate_target: rotateTarget || "original"
+                });
+            }
             setRotation(0);
             if (onRotateSuccess) {
                 onRotateSuccess();
@@ -644,11 +651,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
                                 <button
                                     key={key}
                                     onClick={() => setCorrect(key)}
-                                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors border ${
-                                        currentStatus === key
+                                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-colors border ${currentStatus === key
                                             ? cfg.activeBg + " border-transparent"
                                             : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                                    }`}
+                                        }`}
                                 >
                                     {cfg.label}
                                 </button>
@@ -796,7 +802,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
         try {
             const promises = [];
             if (reassessVehicleDamage) {
-                promises.push(reassessDamageResult({ 
+                promises.push(reassessDamageResult({
                     unique_id: inspectionRow.unique_verify_id,
                     rotation: reassessRotation
                 }));
@@ -961,7 +967,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         <p className="text-gray-500 text-sm mb-6">
                             Are you sure you want to start a new assessment for this claim?
                         </p>
-                        
+
                         <div className="space-y-3 mb-6">
                             {/* License Plate Toggle */}
                             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
@@ -969,7 +975,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     <span className="text-sm font-bold text-gray-800 block">License Plate</span>
                                     <span className="text-xs text-gray-500">Reassess the license plate text</span>
                                 </div>
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => setReassessLicensePlate(!reassessLicensePlate)}
                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessLicensePlate ? 'bg-blue-600' : 'bg-gray-300'}`}
@@ -984,7 +990,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     <span className="text-sm font-bold text-gray-800 block">Chassis No</span>
                                     <span className="text-xs text-gray-500">Reassess the chassis number text</span>
                                 </div>
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => setReassessChassisNo(!reassessChassisNo)}
                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${reassessChassisNo ? 'bg-blue-600' : 'bg-gray-300'}`}
@@ -999,7 +1005,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     <span className="text-sm font-bold text-gray-800 block">Vehicle Damage</span>
                                     <span className="text-xs text-gray-500">Reassess vehicle damage detection</span>
                                 </div>
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => {
                                         const newValue = !reassessVehicleDamage;
@@ -1017,7 +1023,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     <span className="text-sm font-bold text-gray-800 block">Auto Rotation</span>
                                     <span className="text-xs text-gray-500">Rotate images automatically</span>
                                 </div>
-                                <button 
+                                <button
                                     type="button"
                                     disabled={!reassessVehicleDamage}
                                     onClick={() => setReassessRotation(!reassessRotation)}
@@ -1029,13 +1035,13 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         </div>
 
                         <div className="flex gap-3">
-                            <button 
+                            <button
                                 onClick={() => setShowReassessModal(false)}
                                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
                             >
                                 Cancel
                             </button>
-                            <button 
+                            <button
                                 onClick={handleReassessment}
                                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
                             >
@@ -1079,7 +1085,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                 )}
 
                 {/* Customer Details */}
-                <SectionCard 
+                <SectionCard
                     title="Customer Details"
                     action={
                         !isEditingDetails ? (
@@ -1130,7 +1136,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
                             <FieldRow label="Full Name" value={customerName} />
                             <FieldRow label="Email Address" value={customerEmail} />
-                            
+
                             {isEditingDetails ? (
                                 <>
                                     <div className="flex items-center gap-4">
@@ -1162,7 +1168,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     <FieldRow label="Claim No." value={claimNumber} />
                                 </>
                             )}
-                            
+
                             <FieldRow label="Location" value={location} />
                             <FieldRow label="Status" value={inspectionRow?.status || "—"} />
                             {fakeImgDetected && (
@@ -1201,7 +1207,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             <div>
                                 <h3 className="text-sm font-bold text-gray-900 mb-3">Plate No</h3>
                                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                                    onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate' })}>
+                                    onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate', mediaId: licensePlateEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                                     {licensePlateImage ? (
                                         <img src={licensePlateImage} alt="License plate" className="w-full h-full object-cover" />
                                     ) : (
@@ -1223,7 +1229,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             <div>
                                 <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
                                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                                    onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number' })}>
+                                    onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number', mediaId: chassisEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                                     {chassisImage ? (
                                         <img src={chassisImage} alt="Chassis number" className="w-full h-full object-cover" />
                                     ) : (
@@ -1398,6 +1404,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                     label={fullscreenImage.label}
                     mediaId={fullscreenImage.mediaId}
                     rotateTarget={fullscreenImage.rotateTarget}
+                    isInspectionMedia={fullscreenImage.isInspectionMedia}
                     onClose={() => setFullscreenImage(null)}
                     onRotateSuccess={() => {
                         setFullscreenImage(null);

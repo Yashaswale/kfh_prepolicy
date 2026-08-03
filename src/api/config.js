@@ -34,6 +34,7 @@ export const ENDPOINTS = {
   editCorrectIncorrectResult: '/customers/inspections/{inspection_id}/mark-result/',
   markAsViewed: '/customers/inspection/{inspection_id}/mark-as-viewed/',
   rotateDamageMedia: '/customers/inspection-damage-media/{media_id}/rotate/',
+  rotateInspectionMedia: '/customers/inspection-media/{media_id}/rotate/',
   supervisorAccountsSummary: '/customers/inspection/admin/supervisor-accounts-summary/',
   subUsersSummary: '/customers/inspection/supervisors/{supervisor_id}/sub-users-summary/',
 };
