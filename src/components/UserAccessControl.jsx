@@ -101,26 +101,44 @@ function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const normalizedOptions = options.map((opt) => {
+    if (typeof opt === "object" && opt !== null) {
+      return { value: opt.value ?? opt.key, label: opt.label };
+    }
+    return { value: opt, label: opt };
+  });
+
+  const selectedOption = normalizedOptions.find((opt) => opt.value === value) || { value, label: value };
+
   return (
     <div className="relative inline-block" ref={ref} style={{ minWidth }}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 border border-gray-300 rounded px-3 py-2 bg-white text-sm text-gray-700 w-full hover:border-green-400 transition"
+        className="flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm text-gray-700 w-full hover:border-green-400 focus:outline-none focus:ring-1 focus:ring-green-500 transition cursor-pointer"
       >
-        <span className="flex-1 text-left whitespace-nowrap truncate">{value}</span>
+        <span className="flex-1 text-left whitespace-nowrap truncate">
+          {selectedOption.label || "-- Choose --"}
+        </span>
         <ChevronDown />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 min-w-full">
-          {options.map((opt) => (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-full max-h-60 overflow-y-auto py-1">
+          {normalizedOptions.map((opt) => (
             <button
-              key={opt}
+              key={opt.value}
               type="button"
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={`block w-full text-left px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${value === opt ? "bg-green-50 text-green-600 font-medium" : "text-gray-700"}`}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`flex items-center justify-between w-full text-left px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${
+                value === opt.value ? "bg-green-50 text-green-600 font-semibold" : "text-gray-700"
+              }`}
             >
-              {opt}
+              <span>{opt.label}</span>
+              {value === opt.value && (
+                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
             </button>
           ))}
         </div>
@@ -386,6 +404,22 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const now = new Date();
   const [statsMonth, setStatsMonth] = useState(MONTH_ABBRS[now.getMonth()]);
   const [statsYear, setStatsYear] = useState(String(now.getFullYear()));
+  const [filterType, setFilterType] = useState("month_year"); // "month_year" or "date_range"
+
+  // Helper to parse start & end date for a month/year
+  const getMonthDateRange = (monthAbbr, yearStr) => {
+    const monthIdx = MONTH_ABBRS.indexOf(monthAbbr);
+    const year = parseInt(yearStr, 10);
+    if (monthIdx === -1 || isNaN(year)) return { startDate: "", endDate: "" };
+    const startStr = `${year}-${String(monthIdx + 1).padStart(2, "0")}-01`;
+    const lastDay = new Date(year, monthIdx + 1, 0).getDate();
+    const endStr = `${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    return { startDate: startStr, endDate: endStr };
+  };
+
+  const initialRange = getMonthDateRange(MONTH_ABBRS[now.getMonth()], String(now.getFullYear()));
+  const [statsStartDate, setStatsStartDate] = useState(initialRange.startDate);
+  const [statsEndDate, setStatsEndDate] = useState(initialRange.endDate);
 
   // Inspection Listing States (for selected supervisor detail view)
   const [inspectionsActiveTab, setInspectionsActiveTab] = useState("pre");
@@ -439,11 +473,18 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const [formChangePasswordConfirmPassword, setFormChangePasswordConfirmPassword] = useState("");
 
   // Fetch all supervisors and their sub-user lists to display total counts
-  const fetchSupervisorsData = async (month = statsMonth, year = statsYear) => {
+  const fetchSupervisorsData = async (startDate, endDate, year) => {
     setLoading(true);
     setError("");
     try {
-      const data = await getSupervisorAccountsSummary({ month, year });
+      const query = {};
+      if (startDate && endDate) {
+        query.start_date = startDate;
+        query.end_date = endDate;
+      } else if (year) {
+        query.year = year;
+      }
+      const data = await getSupervisorAccountsSummary(query);
       const sups = Array.isArray(data) ? data : (data?.results ?? []);
 
       const mapped = sups.map(sup => ({
@@ -459,12 +500,19 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
     }
   };
 
-  const fetchSupervisorSummary = async (supervisorId, month, year) => {
+  const fetchSupervisorSummary = async (supervisorId, startDate, endDate, year) => {
     setLoadingSummary(true);
 
     // 1. Fetch Supervisor's own summary
     try {
-      const data = await getAccountSummary({ user_id: supervisorId, month, year });
+      const query = { user_id: supervisorId };
+      if (startDate && endDate) {
+        query.start_date = startDate;
+        query.end_date = endDate;
+      } else if (year) {
+        query.year = year;
+      }
+      const data = await getAccountSummary(query);
       if (data) {
         setUserSummary({
           total_links_sent: data.total_links_sent ?? 0,
@@ -480,12 +528,19 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
     }
   };
 
-  const fetchSubUsersData = async (supervisorId, month = statsMonth, year = statsYear) => {
+  const fetchSubUsersData = async (supervisorId, startDate, endDate, year) => {
     setLoading(true);
     setLoadingSubusersSummary(true);
     setError("");
     try {
-      const data = await getSubUsersSummary(supervisorId, { month, year });
+      const query = {};
+      if (startDate && endDate) {
+        query.start_date = startDate;
+        query.end_date = endDate;
+      } else if (year) {
+        query.year = year;
+      }
+      const data = await getSubUsersSummary(supervisorId, query);
       const list = Array.isArray(data) ? data : (data?.results ?? []);
       setSubUsers(list);
 
@@ -514,22 +569,53 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
   // Load supervisors or sub-users initially and when filters change
   useEffect(() => {
+    let startDate = statsStartDate;
+    let endDate = statsEndDate;
+    let year = undefined;
+
+    if (filterType === "month_year") {
+      if (statsMonth === "All") {
+        startDate = undefined;
+        endDate = undefined;
+        year = statsYear;
+      } else {
+        const range = getMonthDateRange(statsMonth, statsYear);
+        startDate = range.startDate;
+        endDate = range.endDate;
+      }
+    }
+
     if (canViewAllSupervisors && !selectedSupervisor) {
-      fetchSupervisorsData(statsMonth, statsYear);
+      fetchSupervisorsData(startDate, endDate, year);
     } else if (selectedSupervisor) {
-      fetchSubUsersData(selectedSupervisor.id, statsMonth, statsYear);
+      fetchSubUsersData(selectedSupervisor.id, startDate, endDate, year);
     } else if (isSupervisorOnly || isAdminSubUsers) {
       // Direct sub-users list for supervisor / admin
       setSelectedSupervisor(currentUser);
     }
-  }, [selectedSupervisor, statsMonth, statsYear]);
+  }, [selectedSupervisor, statsMonth, statsYear, statsStartDate, statsEndDate, filterType]);
 
   // Effect to load summary statistics when supervisor or filters change
   useEffect(() => {
     if (selectedSupervisor) {
-      fetchSupervisorSummary(selectedSupervisor.id, statsMonth, statsYear);
+      let startDate = statsStartDate;
+      let endDate = statsEndDate;
+      let year = undefined;
+
+      if (filterType === "month_year") {
+        if (statsMonth === "All") {
+          startDate = undefined;
+          endDate = undefined;
+          year = statsYear;
+        } else {
+          const range = getMonthDateRange(statsMonth, statsYear);
+          startDate = range.startDate;
+          endDate = range.endDate;
+        }
+      }
+      fetchSupervisorSummary(selectedSupervisor.id, startDate, endDate, year);
     }
-  }, [selectedSupervisor, statsMonth, statsYear]);
+  }, [selectedSupervisor, statsMonth, statsYear, statsStartDate, statsEndDate, filterType]);
 
   // Fetch inspections for the selected supervisor
   const fetchSupervisorInspections = async () => {
@@ -686,13 +772,29 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   };
 
   const refreshCurrentView = () => {
+    let startDate = statsStartDate;
+    let endDate = statsEndDate;
+    let year = undefined;
+
+    if (filterType === "month_year") {
+      if (statsMonth === "All") {
+        startDate = undefined;
+        endDate = undefined;
+        year = statsYear;
+      } else {
+        const range = getMonthDateRange(statsMonth, statsYear);
+        startDate = range.startDate;
+        endDate = range.endDate;
+      }
+    }
+
     if (selectedSupervisor) {
-      fetchSubUsersData(selectedSupervisor.id, statsMonth, statsYear);
+      fetchSubUsersData(selectedSupervisor.id, startDate, endDate, year);
       if (isAdmin) {
-        fetchSupervisorsData(statsMonth, statsYear); // also keep main list updated
+        fetchSupervisorsData(startDate, endDate, year); // also keep main list updated
       }
     } else {
-      fetchSupervisorsData(statsMonth, statsYear);
+      fetchSupervisorsData(startDate, endDate, year);
     }
   };
 
@@ -1091,29 +1193,62 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
               <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-wrap gap-4">
                 <div className="flex items-center gap-4 flex-wrap">
                   <span className="font-semibold text-gray-800 text-sm">Supervisors Directory</span>
-                  {/* Period Filter Dropdowns for Stats */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-gray-500">Month</span>
-                    <select
-                      value={statsMonth}
-                      onChange={(e) => setStatsMonth(e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 cursor-pointer"
-                    >
-                      {MONTH_ABBRS.map((m) => (
-                        <option key={m}>{m}</option>
-                      ))}
-                    </select>
+                  {/* Period Filter Panel for Stats */}
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-1 flex-wrap">
+                    {/* Toggle Segmented Control */}
+                    <div className="flex bg-gray-200/60 p-0.5 rounded text-[11px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setFilterType("month_year")}
+                        className={`px-2 py-0.5 rounded transition ${
+                          filterType === "month_year"
+                            ? "bg-white text-green-600 shadow-xs"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterType("date_range")}
+                        className={`px-2 py-0.5 rounded transition ${
+                          filterType === "date_range"
+                            ? "bg-white text-green-600 shadow-xs"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        Range
+                      </button>
+                    </div>
 
-                    <span className="text-xs font-medium text-gray-500 ml-1.5">Year</span>
-                    <select
-                      value={statsYear}
-                      onChange={(e) => setStatsYear(e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 cursor-pointer"
-                    >
-                      {["2024", "2025", "2026", "2027", "2028"].map((y) => (
-                        <option key={y}>{y}</option>
-                      ))}
-                    </select>
+                    {filterType === "month_year" ? (
+                      <div className="flex items-center gap-1">
+                        <SelectDropdown
+                          value={statsMonth}
+                          onChange={(val) => setStatsMonth(val)}
+                          options={["All", ...MONTH_ABBRS]}
+                          minWidth="80px"
+                        />
+                        <SelectDropdown
+                          value={statsYear}
+                          onChange={(val) => setStatsYear(val)}
+                          options={["2024", "2025", "2026", "2027", "2028"]}
+                          minWidth="85px"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <DatePicker
+                          value={statsStartDate}
+                          onChange={(val) => setStatsStartDate(val)}
+                        />
+                        <span className="text-gray-400 text-xs">—</span>
+                        <DatePicker
+                          value={statsEndDate}
+                          onChange={(val) => setStatsEndDate(val)}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1289,29 +1424,62 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                   <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
                     Overall Summary for : {selectedSupervisor.name}
                   </h3>
-                  {/* Period Filter Dropdowns for Stats */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium text-gray-500">Month</span>
-                    <select
-                      value={statsMonth}
-                      onChange={(e) => setStatsMonth(e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 cursor-pointer"
-                    >
-                      {MONTH_ABBRS.map((m) => (
-                        <option key={m}>{m}</option>
-                      ))}
-                    </select>
+                  {/* Period Filter Panel for Stats */}
+                  <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-1 flex-wrap">
+                    {/* Toggle Segmented Control */}
+                    <div className="flex bg-gray-200/60 p-0.5 rounded text-[11px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setFilterType("month_year")}
+                        className={`px-2 py-0.5 rounded transition ${
+                          filterType === "month_year"
+                            ? "bg-white text-green-600 shadow-xs"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFilterType("date_range")}
+                        className={`px-2 py-0.5 rounded transition ${
+                          filterType === "date_range"
+                            ? "bg-white text-green-600 shadow-xs"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
+                      >
+                        Range
+                      </button>
+                    </div>
 
-                    <span className="text-xs font-medium text-gray-500 ml-1.5">Year</span>
-                    <select
-                      value={statsYear}
-                      onChange={(e) => setStatsYear(e.target.value)}
-                      className="border border-gray-300 rounded px-2 py-1 text-xs text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-green-500 cursor-pointer"
-                    >
-                      {["2024", "2025", "2026", "2027", "2028"].map((y) => (
-                        <option key={y}>{y}</option>
-                      ))}
-                    </select>
+                    {filterType === "month_year" ? (
+                      <div className="flex items-center gap-1">
+                        <SelectDropdown
+                          value={statsMonth}
+                          onChange={(val) => setStatsMonth(val)}
+                          options={["All", ...MONTH_ABBRS]}
+                          minWidth="80px"
+                        />
+                        <SelectDropdown
+                          value={statsYear}
+                          onChange={(val) => setStatsYear(val)}
+                          options={["2024", "2025", "2026", "2027", "2028"]}
+                          minWidth="85px"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <DatePicker
+                          value={statsStartDate}
+                          onChange={(val) => setStatsStartDate(val)}
+                        />
+                        <span className="text-gray-400 text-xs">—</span>
+                        <DatePicker
+                          value={statsEndDate}
+                          onChange={(val) => setStatsEndDate(val)}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1944,40 +2112,26 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                   />
                 </div>
 
-                <div>
+                <div className="flex flex-col gap-1.5">
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Access Role Type</label>
-                  <select
+                  <SelectDropdown
                     value={formType}
-                    onChange={(e) => setFormType(e.target.value)}
-                    className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
-                    required
-                  >
-                    <option value="">-- Choose Access Role --</option>
-                    {ACCESS_TYPES.map((t) => (
-                      <option key={t.key} value={t.key}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setFormType(val)}
+                    options={ACCESS_TYPES.map((t) => ({ value: t.key, label: t.label }))}
+                    minWidth="100%"
+                  />
                 </div>
 
                 {/* Admin needs to specify supervisor. If we already clicked into a supervisor, pre-fill it. */}
                 {isAdmin && !selectedSupervisor && (
-                  <div>
+                  <div className="flex flex-col gap-1.5">
                     <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Assign Supervisor</label>
-                    <select
+                    <SelectDropdown
                       value={formSupervisorId}
-                      onChange={(e) => setFormSupervisorId(e.target.value)}
-                      className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
-                      required
-                    >
-                      <option value="">-- Choose Supervisor --</option>
-                      {supervisors.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({s.email})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setFormSupervisorId(val)}
+                      options={supervisors.map((s) => ({ value: String(s.id), label: `${s.name} (${s.email})` }))}
+                      minWidth="100%"
+                    />
                   </div>
                 )}
               </div>
@@ -2042,21 +2196,14 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                 {/* Only show access role type if the user is a subuser */}
                 {!isEditingSupervisor && (
-                  <div>
+                  <div className="flex flex-col gap-1.5">
                     <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Access Role Type</label>
-                    <select
+                    <SelectDropdown
                       value={formType}
-                      onChange={(e) => setFormType(e.target.value)}
-                      className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none bg-white cursor-pointer transition"
-                      required
-                    >
-                      <option value="">-- Choose Access Role --</option>
-                      {ACCESS_TYPES.map((t) => (
-                        <option key={t.key} value={t.key}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => setFormType(val)}
+                      options={ACCESS_TYPES.map((t) => ({ value: t.key, label: t.label }))}
+                      minWidth="100%"
+                    />
                   </div>
                 )}
               </div>
