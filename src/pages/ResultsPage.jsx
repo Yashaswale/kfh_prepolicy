@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { getInspectionOcr, getDamageResults, getWindshieldResults, markInspectionAsViewed } from "../api";
 import PrePolicyAssessmentResult from "./Pre-policy";
 import WindShieldAssessmentResult from "./WindsheildClaim";
@@ -7,6 +8,7 @@ import WindShieldAssessmentResult from "./WindsheildClaim";
 export default function ResultsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,7 +29,7 @@ export default function ResultsPage() {
       ]);
 
       if (ocrRes.status === "rejected") {
-        throw new Error("Could not load inspection data. " + (ocrRes.reason?.message || ""));
+        throw new Error(t("Could not load inspection data.") + " " + (ocrRes.reason?.message || ""));
       }
 
       const ocr = ocrRes.value;
@@ -59,7 +61,7 @@ export default function ResultsPage() {
       }
 
     } catch (err) {
-      setError(err.message || "Failed to load results");
+      setError(err.message || t("Failed to load results"));
     } finally {
       setLoading(false);
     }
@@ -78,7 +80,7 @@ export default function ResultsPage() {
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
-        <div className="text-gray-600 font-medium tracking-wide">Loading results...</div>
+        <div className="text-gray-600 font-medium tracking-wide">{t("Loading results...")}</div>
       </div>
     );
   }
@@ -90,10 +92,10 @@ export default function ResultsPage() {
           <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <span className="font-medium">{error}</span>
+          <span className="font-medium">{t(error)}</span>
         </div>
-        <button onClick={() => navigate("/")} className="mt-6 px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition">
-          Go to Home
+        <button onClick={() => navigate("/")} className="mt-6 px-5 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition cursor-pointer">
+          {t("Go to Home")}
         </button>
       </div>
     );

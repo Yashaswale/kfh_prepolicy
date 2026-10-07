@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import SendLinkModal from "./Sendlink_modal";
 import Transactions from "./Transactions";
 import PrePolicyAssessmentResult from "../pages/Pre-policy";
@@ -60,6 +61,7 @@ const ChevronRight = () => (
 function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const handler = (e) => {
@@ -69,24 +71,44 @@ function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const normalizedOptions = options.map((opt) => {
+    if (typeof opt === "object" && opt !== null) {
+      return { value: opt.value ?? opt.key, label: t(opt.label) };
+    }
+    return { value: opt, label: t(opt) };
+  });
+
+  const selectedOption = normalizedOptions.find((opt) => opt.value === value) || { value, label: t(value) };
+
   return (
-    <div className="relative" ref={ref} style={{ minWidth }}>
+    <div className="relative inline-block" ref={ref} style={{ minWidth }}>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 border border-gray-300 rounded px-3 py-2 bg-white text-sm text-gray-700 w-full hover:border-green-400 transition"
+        className="flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm text-gray-700 w-full hover:border-green-400 focus:outline-none focus:ring-1 focus:ring-green-500 transition cursor-pointer"
       >
-        <span className="flex-1 text-left whitespace-nowrap">{value}</span>
+        <span className="flex-1 text-start whitespace-nowrap truncate">
+          {selectedOption.label || t("-- Choose --")}
+        </span>
         <ChevronDown />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 min-w-full">
-          {options.map((opt) => (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-full max-h-60 overflow-y-auto py-1">
+          {normalizedOptions.map((opt) => (
             <button
-              key={opt}
-              onClick={() => { onChange(opt); setOpen(false); }}
-              className={`block w-full text-left px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${value === opt ? "bg-green-50 text-green-600 font-medium" : "text-gray-700"}`}
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`flex items-center justify-between w-full text-start px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${
+                value === opt.value ? "bg-green-50 text-green-600 font-semibold" : "text-gray-700"
+              }`}
             >
-              {opt}
+              <span>{opt.label}</span>
+              {value === opt.value && (
+                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
             </button>
           ))}
         </div>
@@ -102,6 +124,8 @@ const WEEK_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 function DatePicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language?.startsWith("ar");
 
   // Helper to parse 'YYYY-MM-DD' string safely without timezone shifts
   const parseLocalDate = (dateStr) => {
@@ -136,10 +160,12 @@ function DatePicker({ value, onChange }) {
   }, []);
 
   const formatDisplay = (d) => {
-    if (!d) return "dd-mm-yyyy";
+    if (!d) return t("dd-mm-yyyy");
     const parsed = parseLocalDate(d);
-    if (!parsed) return "dd-mm-yyyy";
-    return `${String(parsed.day).padStart(2, "0")}-${String(parsed.month + 1).padStart(2, "0")}-${parsed.year}`;
+    if (!parsed) return t("dd-mm-yyyy");
+    
+    const dayStr = String(parsed.day).padStart(2, "0");
+    return `${dayStr}-${String(parsed.month + 1).padStart(2, "0")}-${parsed.year}`;
   };
 
   const year = viewDate.getFullYear();
@@ -177,26 +203,27 @@ function DatePicker({ value, onChange }) {
   return (
     <div className="relative" ref={ref}>
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 border border-gray-300 rounded px-3 py-2 bg-white text-sm text-gray-700 hover:border-green-400 transition min-w-[130px]"
+        className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm text-gray-700 hover:border-green-400 transition min-w-[130px] cursor-pointer"
       >
-        <span className="flex-1 text-left">{formatDisplay(value)}</span>
+        <span className="flex-1 text-start">{formatDisplay(value)}</span>
         <CalendarIcon />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 w-64">
+        <div className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 p-3 w-64 ${isRtl ? "right-0" : "left-0"}`}>
           <div className="flex items-center justify-between mb-3">
-            <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition">
+            <button type="button" onClick={isRtl ? nextMonth : prevMonth} className="p-1 hover:bg-gray-100 rounded transition cursor-pointer">
               <ChevronLeft />
             </button>
-            <span className="text-sm font-semibold text-gray-800">{MONTHS[month]} {year}</span>
-            <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition">
+            <span className="text-sm font-semibold text-gray-800">{t(MONTHS[month])} {year}</span>
+            <button type="button" onClick={isRtl ? prevMonth : nextMonth} className="p-1 hover:bg-gray-100 rounded transition cursor-pointer">
               <ChevronRight />
             </button>
           </div>
           <div className="grid grid-cols-7 mb-1">
             {WEEK_DAYS.map(d => (
-              <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+              <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{t(d)}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-y-0.5">
@@ -204,8 +231,9 @@ function DatePicker({ value, onChange }) {
               <div key={idx} className="flex items-center justify-center">
                 {day ? (
                   <button
+                    type="button"
                     onClick={() => selectDay(day)}
-                    className={`w-8 h-8 text-xs rounded-full flex items-center justify-center transition font-medium
+                    className={`w-8 h-8 text-xs rounded-full flex items-center justify-center transition font-medium cursor-pointer
                       ${isSelected(day) ? "bg-green-500 text-white" : isToday(day) ? "border border-green-400 text-green-600" : "text-gray-700 hover:bg-green-50 hover:text-green-600"}`}
                   >
                     {day}
@@ -216,10 +244,11 @@ function DatePicker({ value, onChange }) {
           </div>
           <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
             <button
+              type="button"
               onClick={() => { onChange(""); setOpen(false); }}
-              className="text-xs text-gray-400 hover:text-red-500 transition"
+              className="text-xs text-gray-400 hover:text-red-500 transition cursor-pointer"
             >
-              Clear
+              {t("Clear")}
             </button>
           </div>
         </div>
@@ -304,18 +333,18 @@ const TAB_TYPE_MAP = {
   wind: "windshield",
 };
 
-const renderReviewStatus = (status) => {
+const renderReviewStatus = (status, t) => {
   if (status === true || status === "accepted") {
-    return <span className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit">Accepted</span>;
+    return <span className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit">{t("Accepted")}</span>;
   }
   if (status === false || status === "rejected") {
-    return <span className="text-red-600 font-semibold text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">Rejected</span>;
+    return <span className="text-red-600 font-semibold text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">{t("Rejected")}</span>;
   }
   if (status === "viewed") {
-    return <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">Viewed</span>;
+    return <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">{t("Viewed")}</span>;
   }
   if (status === "pending") {
-    return <span className="text-amber-600 font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">Pending</span>;
+    return <span className="text-amber-600 font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">{t("Pending")}</span>;
   }
   return <span className="text-gray-400 text-xs">—</span>;
 };
@@ -325,6 +354,8 @@ export default function App() {
   const navigate = useNavigate();
   const currentUser = getUser();
   const isSubUser = currentUser?.type !== "supervisor" && currentUser?.type !== "supervisor_admin";
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language?.startsWith("ar");
 
   // Filter tabs based on user type/role
   const allowedTabs = TABS.filter(tab => {
@@ -493,8 +524,17 @@ export default function App() {
             if (item.created_at) {
               try {
                 const dt = new Date(item.created_at);
-                dateStr = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-                timeStr = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+                const dayStr = String(dt.getDate()).padStart(2, "0");
+                const monthShort = dt.toLocaleDateString("en-US", { month: "short" });
+                const yearStr = dt.getFullYear();
+                
+                dateStr = `${dayStr} ${t(monthShort)} ${yearStr}`;
+                
+                const hours = dt.getHours();
+                const minutes = String(dt.getMinutes()).padStart(2, "0");
+                const ampm = hours >= 12 ? t("PM") : t("AM");
+                const displayHours = String(hours % 12 || 12).padStart(2, "0");
+                timeStr = `${displayHours}:${minutes} ${ampm}`;
               } catch (_) { }
             }
 
@@ -502,9 +542,16 @@ export default function App() {
             if (item.updated_at) {
               try {
                 const dt = new Date(item.updated_at);
-                const d = dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-                const t = dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-                updatedAtStr = `${d} ${t}`;
+                const dayStr = String(dt.getDate()).padStart(2, "0");
+                const monthShort = dt.toLocaleDateString("en-US", { month: "short" });
+                const yearStr = dt.getFullYear();
+                
+                const hours = dt.getHours();
+                const minutes = String(dt.getMinutes()).padStart(2, "0");
+                const ampm = hours >= 12 ? t("PM") : t("AM");
+                const displayHours = String(hours % 12 || 12).padStart(2, "0");
+                
+                updatedAtStr = `${dayStr} ${t(monthShort)} ${yearStr} ${displayHours}:${minutes} ${ampm}`;
               } catch (_) { }
             }
 
@@ -673,27 +720,55 @@ export default function App() {
       {/* ── Top Nav ── */}
       <header className="bg-white border-b border-gray-200 px-4 md:px-6 flex items-center justify-between h-14">
         <KFHLogo />
-        <div className="relative" ref={logoutRef}>
-          <div onClick={() => setShowLogout(!showLogout)} className="flex items-center gap-1 text-gray-700 cursor-pointer hover:text-green-600 transition select-none">
-            <svg className="w-7 h-7 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-            </svg>
-            <span className="font-medium">{currentUser?.name || "Admin"}</span>
-            <ChevronDown />
+        <div className="flex items-center gap-4">
+          {/* Language Switcher */}
+          <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage("en")}
+              className={`px-2 py-1 rounded transition cursor-pointer ${
+                !isRtl
+                  ? "bg-white text-green-600 shadow-xs"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              English
+            </button>
+            <button
+              type="button"
+              onClick={() => i18n.changeLanguage("ar")}
+              className={`px-2 py-1 rounded transition cursor-pointer ${
+                isRtl
+                  ? "bg-white text-green-600 shadow-xs"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              العربية
+            </button>
           </div>
-          {showLogout && (
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]">
-              <button
-                onClick={() => {
-                  setShowLogout(false);
-                  setShowLogoutConfirm(true);
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition font-medium rounded-lg"
-              >
-                Logout
-              </button>
+
+          <div className="relative" ref={logoutRef}>
+            <div onClick={() => setShowLogout(!showLogout)} className="flex items-center gap-1 text-gray-700 cursor-pointer hover:text-green-600 transition select-none">
+              <svg className="w-7 h-7 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
+              </svg>
+              <span className="font-medium">{currentUser?.name || t("Admin")}</span>
+              <ChevronDown />
             </div>
-          )}
+            {showLogout && (
+              <div className={`absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px] ${isRtl ? "left-0" : "right-0"}`}>
+                <button
+                  onClick={() => {
+                    setShowLogout(false);
+                    setShowLogoutConfirm(true);
+                  }}
+                  className={`w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition font-medium rounded-lg cursor-pointer ${isRtl ? "text-right" : "text-left"}`}
+                >
+                  {t("Logout")}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -701,42 +776,42 @@ export default function App() {
       <div className="bg-gray-800 flex items-center px-4 h-12 overflow-x-auto whitespace-nowrap flex-nowrap scrollbar-none">
         <button
           onClick={() => switchNav("dashboard")}
-          className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 ${activeNav === "dashboard" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
+          className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 cursor-pointer ${activeNav === "dashboard" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
             <path d="M3 4a1 1 0 011-1h5a1 1 0 011 1v5a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 9a1 1 0 011-1h5a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm9-9a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm0 9a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
           </svg>
-          Dashboard
+          {t("Dashboard")}
         </button>
         <button
           onClick={() => switchNav("transaction")}
-          className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 ${activeNav === "transaction" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
+          className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 cursor-pointer ${activeNav === "transaction" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          Transaction
+          {t("Transaction")}
         </button>
         {(currentUser?.type === "supervisor" || currentUser?.type === "supervisor_admin") && (
           <button
             onClick={() => switchNav("userControl")}
-            className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 ${activeNav === "userControl" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
+            className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 cursor-pointer ${activeNav === "userControl" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            User access control
+            {t("User access control")}
           </button>
         )}
         {currentUser?.is_staff === true && (
           <button
             onClick={() => switchNav("adminSubUsers")}
-            className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 ${activeNav === "adminSubUsers" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
+            className={`flex items-center gap-2 px-6 h-full text-sm font-medium transition flex-shrink-0 cursor-pointer ${activeNav === "adminSubUsers" ? "bg-green-500 text-white" : "text-gray-300 hover:text-white"}`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
-            Admin Sub-users
+            {t("Admin Sub-users")}
           </button>
         )}
       </div>
@@ -770,7 +845,7 @@ export default function App() {
               <button
                 key={tab.key}
                 onClick={() => switchTab(tab.key)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium border transition flex-shrink-0
+                className={`flex items-center gap-2 px-5 py-2.5 rounded text-sm font-medium border transition flex-shrink-0 cursor-pointer
                   ${activeTab === tab.key
                     ? "bg-green-500 text-white border-green-500"
                     : "bg-white text-gray-600 border-gray-300 hover:border-green-400"}`}
@@ -778,19 +853,19 @@ export default function App() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d={tab.d} />
                 </svg>
-                {tab.label}
+                {t(tab.label)}
               </button>
             ))}
           </div>
 
           <button
             onClick={() => setShowSendLink(true)}
-            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded text-sm font-medium transition w-full sm:w-auto justify-center"
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded text-sm font-medium transition w-full sm:w-auto justify-center cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
             </svg>
-            Send Link to Customer
+            {t("Send Link to Customer")}
           </button>
         </div>
 
@@ -804,7 +879,7 @@ export default function App() {
               <SearchIcon />
               <input
                 type="text"
-                placeholder="Search by name, email,..."
+                placeholder={t("Search by name, email,...")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 autoComplete="off"
@@ -812,19 +887,19 @@ export default function App() {
                 id="dashboard_search_nofill"
                 readOnly
                 onFocus={(e) => e.target.removeAttribute('readOnly')}
-                className="outline-none text-sm text-gray-600 placeholder-gray-400 w-full"
+                className="outline-none text-sm text-gray-600 placeholder-gray-400 w-full text-start"
               />
             </div>
 
             {/* From */}
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-gray-700">From</span>
+              <span className="font-medium text-gray-700">{t("From")}</span>
               <DatePicker value={dateFrom} onChange={(val) => { setDateFrom(val); setCurrentPage(1); }} />
             </div>
 
             {/* To */}
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium text-gray-700">To</span>
+              <span className="font-medium text-gray-700">{t("To")}</span>
               <DatePicker value={dateTo} onChange={(val) => { setDateTo(val); setCurrentPage(1); }} />
             </div>
 
@@ -855,8 +930,8 @@ export default function App() {
             )}
 
             {/* Sort By */}
-            <div className="flex items-center gap-2 sm:ml-auto text-sm">
-              <span className="font-medium text-gray-700 whitespace-nowrap">Sort By</span>
+            <div className="flex items-center gap-2 ltr:sm:ml-auto rtl:sm:mr-auto text-sm">
+              <span className="font-medium text-gray-700 whitespace-nowrap">{t("Sort By")}</span>
               <SelectDropdown
                 value={sortBy}
                 onChange={(val) => { setSortBy(val); setCurrentPage(1); }}
@@ -867,9 +942,9 @@ export default function App() {
           </div>
 
           {/* Total */}
-          <div className="flex items-center justify-end px-4 py-3 border-b border-gray-100">
+          <div className={`flex items-center px-4 py-3 border-b border-gray-100 ${isRtl ? "justify-start" : "justify-end"}`}>
             <div className="text-sm text-gray-600">
-              Total List : <span className="font-semibold">{rows.length}</span>
+              {t("Total List :")} <span className="font-semibold">{rows.length}</span>
             </div>
           </div>
 
@@ -886,26 +961,26 @@ export default function App() {
                       className="w-4 h-4 accent-green-500"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-10">Sr No</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700 w-10">{t("Sr No")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">
                     <span className="flex items-center gap-1">
-                      Customer Name
+                      {t("Customer Name")}
                       <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                       </svg>
                     </span>
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Claim Number</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Created By</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Updated At</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700 w-[140px] min-w-[140px] max-w-[140px] shrink-0">Damage Level</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">All Status</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Review Status</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Link</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Email Address")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Policy Number")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Claim Number")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Created By")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Date")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Time")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Updated At")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700 w-[140px] min-w-[140px] max-w-[140px] shrink-0">{t("Damage Level")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("All Status")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Review Status")}</th>
+                  <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Link")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -921,15 +996,15 @@ export default function App() {
                           className="w-4 h-4 accent-green-500"
                         />
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{row.serialNumber}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{row.name}</td>
-                      <td className="px-4 py-3 text-gray-500">{row.email}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.policy}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.claim_number}</td>
-                      <td className="px-4 py-3 text-gray-700 font-medium">{row.createdBy}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.date}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.time}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 text-start text-gray-500">{row.serialNumber}</td>
+                      <td className="px-4 py-3 text-start font-medium text-gray-800">{row.name}</td>
+                      <td className="px-4 py-3 text-start text-gray-500">{row.email}</td>
+                      <td className="px-4 py-3 text-start text-gray-600">{row.policy}</td>
+                      <td className="px-4 py-3 text-start text-gray-600">{row.claim_number}</td>
+                      <td className="px-4 py-3 text-start text-gray-700 font-medium">{row.createdBy}</td>
+                      <td className="px-4 py-3 text-start text-gray-600">{row.date}</td>
+                      <td className="px-4 py-3 text-start text-gray-600">{row.time}</td>
+                      <td className="px-4 py-3 text-start text-gray-600">
                         {row.updatedAt && row.updatedAt !== "—" ? (
                           <div className="flex flex-col">
                             <span className="font-medium whitespace-nowrap">{row.updatedAt.split(" ").slice(0, 3).join(" ")}</span>
@@ -939,35 +1014,35 @@ export default function App() {
                           <span>—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 w-[140px] min-w-[140px] max-w-[140px] shrink-0">
+                      <td className="px-4 py-3 text-start w-[140px] min-w-[140px] max-w-[140px] shrink-0">
                         {row.damage ? (
                           <span className={`${damageColors[row.damage] || "bg-gray-400"} text-white text-xs font-semibold px-3 py-1 rounded`}>
-                            {row.damage}
+                            {t(row.damage)}
                           </span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-start">
                         {(() => {
                           const meta = STATUS_META[row.status];
                           if (!meta) {
                             return (
                               <span className="bg-gray-400 text-white text-xs font-semibold px-3 py-1 rounded">
-                                {row.status || "Unknown"}
+                                {t(row.status) || t("Unknown")}
                               </span>
                             );
                           }
                           return (
                             <span className={`${meta.color} text-white text-xs font-semibold px-3 py-1 rounded`}>
-                              {meta.label}
+                              {t(meta.label)}
                             </span>
                           );
                         })()}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-start">
                         <div className="flex flex-col gap-1">
-                          {renderReviewStatus(row.correctResult)}
+                          {renderReviewStatus(row.correctResult, t)}
                           {row.additionalNotes && (
                             <span className="text-gray-500 text-xs max-w-[120px] truncate" title={row.additionalNotes}>
                               {row.additionalNotes}
@@ -975,10 +1050,11 @@ export default function App() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-start">
                         <div className="flex items-center gap-2">
                           {row.status === "expired" ? (
                             <button
+                              type="button"
                               onClick={async () => {
                                 try {
                                   const resp = await regenerateInspectionLink({ unique_id: row.unique_verify_id });
@@ -988,15 +1064,15 @@ export default function App() {
                                     status: resp?.status || resp?.data?.status || "pending",
                                   } : r));
                                 } catch (err) {
-                                  alert(err?.data?.detail || err?.message || "Failed to regenerate link");
+                                  alert(err?.data?.detail || err?.message || t("Failed to regenerate link"));
                                 }
                               }}
-                              className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded transition"
+                              className="flex items-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded transition cursor-pointer"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                               </svg>
-                              Regenerate Link
+                              {t("Regenerate Link")}
                             </button>
                           ) : row.link ? (
                             <>
@@ -1004,9 +1080,10 @@ export default function App() {
                                 {row.link}
                               </span>
                               <button
-                                onClick={() => { navigator.clipboard.writeText(row.link); alert("Link copied!"); }}
-                                className="text-gray-400 hover:text-gray-600 transition"
-                                title="Copy Link"
+                                type="button"
+                                onClick={() => { navigator.clipboard.writeText(row.link); alert(t("Link copied!")); }}
+                                className="text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                                title={t("Copy Link")}
                               >
                                 <CopyIcon />
                               </button>
@@ -1014,9 +1091,10 @@ export default function App() {
                           ) : null}
 
                           <button
+                            type="button"
                             onClick={() => openOcrForRow(row)}
-                            className="text-gray-400 hover:text-gray-700 transition ml-1"
-                            title="View"
+                            className="text-gray-400 hover:text-gray-700 transition cursor-pointer"
+                            title={t("View")}
                           >
                             <EyeIcon />
                           </button>
@@ -1030,19 +1108,19 @@ export default function App() {
           </div>
 
           {/* Pagination / status */}
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 flex-wrap gap-4">
             <span className="text-sm text-gray-500">
               {loadingRows
-                ? "Loading inspections..."
+                ? t("Loading inspections...")
                 : totalCount
-                  ? `Showing ${showingStart}–${showingEnd} of ${totalCount}`
-                  : "No inspections found"}
+                  ? `${t("Showing")} ${showingStart}–${showingEnd} ${t("of")} ${totalCount}`
+                  : t("No inspections found")}
             </span>
 
             <div className="flex items-center gap-4">
               {rowsError && (
                 <span className="text-xs text-orange-500">
-                  {rowsError}
+                  {t(rowsError)}
                 </span>
               )}
 
@@ -1051,20 +1129,20 @@ export default function App() {
                   type="button"
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage <= 1}
-                  className="px-3 py-1 bg-white border border-gray-200 rounded text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="px-3 py-1 bg-white border border-gray-200 rounded text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
                 >
-                  Prev
+                  {t("Prev")}
                 </button>
                 <span className="text-sm text-gray-600">
-                  Page {currentPage} of {totalPages}
+                  {t("Page")} {currentPage} {t("of")} {totalPages}
                 </span>
                 <button
                   type="button"
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage >= totalPages}
-                  className="px-3 py-1 bg-white border border-gray-200 rounded text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  className="px-3 py-1 bg-white border border-gray-200 rounded text-sm text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
                 >
-                  Next
+                  {t("Next")}
                 </button>
               </div>
             </div>
@@ -1086,9 +1164,9 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
             </div>
-            <h3 className="text-base font-bold text-gray-800 mb-2">Confirm Logout</h3>
+            <h3 className="text-base font-bold text-gray-800 mb-2">{t("Confirm Logout")}</h3>
             <p className="text-gray-500 text-xs leading-relaxed mb-6">
-              Are you sure you want to log out of your session? Any unsaved administrative views will be closed.
+              {t("Are you sure you want to log out of your session? Any unsaved administrative views will be closed.")}
             </p>
             <div className="flex gap-3 justify-center">
               <button
@@ -1096,9 +1174,9 @@ export default function App() {
                 onClick={() => {
                   setShowLogoutConfirm(false);
                 }}
-                className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded hover:bg-gray-50 text-xs transition"
+                className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded hover:bg-gray-50 text-xs transition cursor-pointer"
               >
-                No
+                {t("No")}
               </button>
               <button
                 type="button"
@@ -1106,9 +1184,9 @@ export default function App() {
                   setShowLogoutConfirm(false);
                   handleLogout();
                 }}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded text-xs transition shadow-xs"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded text-xs transition shadow-xs cursor-pointer"
               >
-                Yes, Log Out
+                {t("Yes, Log Out")}
               </button>
             </div>
           </div>

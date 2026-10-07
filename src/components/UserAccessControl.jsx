@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   createSubUser,
   updateUser,
@@ -92,6 +93,7 @@ const ChevronRight = () => (
 function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     const handler = (e) => {
@@ -103,12 +105,12 @@ function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
 
   const normalizedOptions = options.map((opt) => {
     if (typeof opt === "object" && opt !== null) {
-      return { value: opt.value ?? opt.key, label: opt.label };
+      return { value: opt.value ?? opt.key, label: t(opt.label) };
     }
-    return { value: opt, label: opt };
+    return { value: opt, label: t(opt) };
   });
 
-  const selectedOption = normalizedOptions.find((opt) => opt.value === value) || { value, label: value };
+  const selectedOption = normalizedOptions.find((opt) => opt.value === value) || { value, label: t(value) };
 
   return (
     <div className="relative inline-block" ref={ref} style={{ minWidth }}>
@@ -117,8 +119,8 @@ function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
         onClick={() => setOpen(!open)}
         className="flex items-center justify-between gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm text-gray-700 w-full hover:border-green-400 focus:outline-none focus:ring-1 focus:ring-green-500 transition cursor-pointer"
       >
-        <span className="flex-1 text-left whitespace-nowrap truncate">
-          {selectedOption.label || "-- Choose --"}
+        <span className="flex-1 text-start whitespace-nowrap truncate">
+          {selectedOption.label || t("-- Choose --")}
         </span>
         <ChevronDown />
       </button>
@@ -129,7 +131,7 @@ function SelectDropdown({ value, onChange, options, minWidth = "130px" }) {
               key={opt.value}
               type="button"
               onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={`flex items-center justify-between w-full text-left px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${
+              className={`flex items-center justify-between w-full text-start px-4 py-2 text-sm whitespace-nowrap hover:bg-green-50 hover:text-green-600 transition ${
                 value === opt.value ? "bg-green-50 text-green-600 font-semibold" : "text-gray-700"
               }`}
             >
@@ -340,18 +342,18 @@ const TAB_TYPE_MAP = {
   wind: "windshield",
 };
 
-const renderReviewStatus = (status) => {
+const renderReviewStatus = (status, t) => {
   if (status === true || status === "accepted") {
-    return <span className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit">Accepted</span>;
+    return <span className="text-green-600 font-semibold text-xs bg-green-50 px-2 py-0.5 rounded border border-green-100 w-fit">{t("Accepted")}</span>;
   }
   if (status === false || status === "rejected") {
-    return <span className="text-red-600 font-semibold text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">Rejected</span>;
+    return <span className="text-red-600 font-semibold text-xs bg-red-50 px-2 py-0.5 rounded border border-red-100 w-fit">{t("Rejected")}</span>;
   }
   if (status === "viewed") {
-    return <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">Viewed</span>;
+    return <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-fit">{t("Viewed")}</span>;
   }
   if (status === "pending") {
-    return <span className="text-amber-600 font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">Pending</span>;
+    return <span className="text-amber-600 font-semibold text-xs bg-amber-50 px-2 py-0.5 rounded border border-amber-100 w-fit">{t("Pending")}</span>;
   }
   return <span className="text-gray-400 text-xs">—</span>;
 };
@@ -366,6 +368,7 @@ const ACCESS_TYPES = [
 const MONTH_ABBRS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function UserAccessControl({ isAdminSubUsers = false }) {
+  const { t } = useTranslation();
   const currentUser = getUser();
   const isAdmin = currentUser?.is_staff === true && (currentUser?.type === "supervisor" || currentUser?.type === "supervisor_admin");
   const isSupervisorAdmin = currentUser?.is_staff === false && currentUser?.type === "supervisor_admin";
@@ -812,7 +815,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const handleCreateSupervisor = async (e) => {
     e.preventDefault();
     if (!formName || !formEmail || !formPassword) {
-      triggerAlert("All fields are required.", false);
+      triggerAlert(t("All fields are required."), false);
       return;
     }
     setError("");
@@ -836,14 +839,14 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const handleCreateSubUser = async (e) => {
     e.preventDefault();
     if (!formName || !formEmail || !formPassword || !formType) {
-      triggerAlert("All fields are required.", false);
+      triggerAlert(t("All fields are required."), false);
       return;
     }
 
     // Determine supervisor ID association
     const supervisorId = (isAdmin && !isAdminSubUsers) ? (formSupervisorId || selectedSupervisor?.id) : currentUser.id;
     if (!supervisorId) {
-      triggerAlert("Please select a Supervisor.", false);
+      triggerAlert(t("Please select a Supervisor."), false);
       return;
     }
 
@@ -859,12 +862,12 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         payload.supervisor = parseInt(supervisorId, 10);
       }
       await createSubUser(payload);
-      triggerAlert("Sub-user created successfully!");
+      triggerAlert(t("Sub-user created successfully!"));
       setShowCreateSubUserModal(false);
       resetForms();
       refreshCurrentView();
     } catch (err) {
-      const msg = err?.data?.detail || err?.data?.error || err?.message || "Failed to create sub-user.";
+      const msg = err?.data?.detail || err?.data?.error || err?.message || t("Failed to create sub-user.");
       triggerAlert(msg, false);
     }
   };
@@ -872,7 +875,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const handleEditUser = async (e) => {
     e.preventDefault();
     if (!formName || !formEmail) {
-      triggerAlert("Name and Email are required.", false);
+      triggerAlert(t("Name and Email are required."), false);
       return;
     }
     setError("");
@@ -888,12 +891,12 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         payload.type = formType;
       }
       await updateUser(userToEdit.id, payload);
-      triggerAlert("User details updated successfully!");
+      triggerAlert(t("User details updated successfully!"));
       setShowEditModal(false);
       resetForms();
       refreshCurrentView();
     } catch (err) {
-      const msg = err?.data?.detail || err?.data?.error || err?.message || "Failed to update user.";
+      const msg = err?.data?.detail || err?.data?.error || err?.message || t("Failed to update user.");
       triggerAlert(msg, false);
     }
   };
@@ -945,11 +948,11 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (!formChangePasswordEmail || !formChangePasswordNewPassword || !formChangePasswordConfirmPassword) {
-      triggerAlert("All fields are required.", false);
+      triggerAlert(t("All fields are required."), false);
       return;
     }
     if (formChangePasswordNewPassword !== formChangePasswordConfirmPassword) {
-      triggerAlert("Passwords do not match.", false);
+      triggerAlert(t("Passwords do not match."), false);
       return;
     }
     setError("");
@@ -959,11 +962,11 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         new_password: formChangePasswordNewPassword,
         confirm_password: formChangePasswordConfirmPassword,
       });
-      triggerAlert("Password changed successfully!");
+      triggerAlert(t("Password changed successfully!"));
       setShowChangePasswordModal(false);
       resetForms();
     } catch (err) {
-      const msg = err?.data?.detail || err?.data?.error || err?.message || "Failed to change password.";
+      const msg = err?.data?.detail || err?.data?.error || err?.message || t("Failed to change password.");
       triggerAlert(msg, false);
     }
   };
@@ -1192,7 +1195,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
               {/* Header Bar */}
               <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-wrap gap-4">
                 <div className="flex items-center gap-4 flex-wrap">
-                  <span className="font-semibold text-gray-800 text-sm">Supervisors Directory</span>
+                  <span className="font-semibold text-gray-800 text-sm">{t("Supervisors Directory")}</span>
                   {/* Period Filter Panel for Stats */}
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-1 flex-wrap">
                     {/* Toggle Segmented Control */}
@@ -1270,20 +1273,20 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
               {supervisors.length === 0 ? (
                 <div className="text-center py-16 text-gray-400 bg-white">
-                  <p className="text-base font-semibold">No Supervisors Available</p>
-                  <p className="text-xs mt-1">Register a new supervisor to begin structuring your user access hierarchy.</p>
+                  <p className="text-base font-semibold">{t("No Supervisors Available")}</p>
+                  <p className="text-xs mt-1">{t("Register a new supervisor to begin structuring your user access hierarchy.")}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-12">Sr No</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Supervisor Name</th>
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
-                        {!isAdmin && <th className="px-4 py-3 text-left font-semibold text-gray-700">Role Type</th>}
-                        <th className="px-4 py-3 text-left font-semibold text-gray-700 w-32">Total Sub-users</th>
-                        <th className="px-4 py-3 text-right font-semibold text-gray-700 pr-6">Actions</th>
+                        <th className="px-4 py-3 text-start font-semibold text-gray-700 w-12">{t("Sr No")}</th>
+                        <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Supervisor Name")}</th>
+                        <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Email Address")}</th>
+                        {!isAdmin && <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Role Type")}</th>}
+                        <th className="px-4 py-3 text-start font-semibold text-gray-700 w-32">{t("Total Sub-users")}</th>
+                        <th className="px-4 py-3 text-end font-semibold text-gray-700 pr-6">{t("Actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1305,7 +1308,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                 {sup.subUsersCount ?? 0}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right pr-6">
+                            <td className="px-4 py-3 text-end pr-6">
                               <div className="flex items-center justify-end gap-3.5">
                                 <button
                                   onClick={() => {
@@ -1319,7 +1322,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                 <button
                                   onClick={() => setExpandedSupervisorId(expandedSupervisorId === sup.id ? null : sup.id)}
                                   className="text-xs text-blue-600 hover:text-blue-750 font-semibold transition flex items-center gap-1"
-                                  title="View Stats"
+                                  title={t("View Stats")}
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
@@ -1330,7 +1333,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                   <>
                                     <button
                                       onClick={() => openChangePasswordModal(sup)}
-                                      title="Change Password"
+                                      title={t("Change Password")}
                                       className="text-xs text-green-600 hover:text-green-750 font-semibold transition flex items-center gap-1"
                                     >
                                       <KeyIcon />
@@ -1345,7 +1348,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                     </button>
                                     <button
                                       onClick={() => openDeleteModal(sup)}
-                                      title="Delete Supervisor"
+                                      title={t("Delete Supervisor")}
                                       className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600 transition"
                                     >
                                       <DeleteIcon />
@@ -1360,31 +1363,31 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                               <td colSpan={isAdmin ? 5 : 6} className="px-6 py-4 border-b border-gray-200">
                                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                   <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
-                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">Total Sent</span>
+                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Total Sent")}</span>
                                     <span className="text-lg font-bold text-gray-750">{sup.total_links_sent ?? 0}</span>
                                   </div>
                                   <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
-                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">Clicked</span>
+                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Clicked")}</span>
                                     <span className="text-lg font-bold text-gray-750">{sup.total_clicked ?? 0}</span>
                                   </div>
                                   <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
-                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">Completed</span>
+                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Completed")}</span>
                                     <span className="text-lg font-bold text-gray-750">{sup.total_completed ?? 0}</span>
                                   </div>
                                   <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs col-span-1">
-                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">Status Ratio</span>
+                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Status Ratio")}</span>
                                     <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                                      <div>Pending: <span className="font-semibold text-gray-700">{sup.pending ?? 0}</span></div>
-                                      <div>Processing: <span className="font-semibold text-gray-700">{sup.processing ?? 0}</span></div>
-                                      <div>Received: <span className="font-semibold text-gray-700">{sup.received ?? 0}</span></div>
+                                      <div>{t("Pending")}: <span className="font-semibold text-gray-700">{sup.pending ?? 0}</span></div>
+                                      <div>{t("Processing")}: <span className="font-semibold text-gray-700">{sup.processing ?? 0}</span></div>
+                                      <div>{t("Received")}: <span className="font-semibold text-gray-700">{sup.received ?? 0}</span></div>
                                       <div>Expired: <span className="font-semibold text-gray-700">{sup.expired ?? 0}</span></div>
                                     </div>
                                   </div>
                                   <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs col-span-1">
-                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">Review Results</span>
+                                    <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Review Results")}</span>
                                     <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                                      <div>Accepted: <span className="font-semibold text-green-600">{sup.accepted ?? 0}</span></div>
-                                      <div>Rejected: <span className="font-semibold text-red-600">{sup.rejected ?? 0}</span></div>
+                                      <div>{t("Accepted")}: <span className="font-semibold text-green-600">{sup.accepted ?? 0}</span></div>
+                                      <div>{t("Rejected")}: <span className="font-semibold text-red-600">{sup.rejected ?? 0}</span></div>
                                     </div>
                                   </div>
                                 </div>
@@ -1412,7 +1415,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                     className="flex items-center gap-1.5 bg-white border border-gray-300 hover:border-green-400 text-gray-700 hover:text-green-600 font-semibold text-xs px-3.5 py-2 rounded shadow-xs transition"
                   >
                     <ArrowLeftIcon />
-                    Back to directory
+                    {t("Back to directory")}
                   </button>
                 </div>
               )}
@@ -1422,7 +1425,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                    Overall Summary for : {selectedSupervisor.name}
+                    {t("Overall Summary for :")} {selectedSupervisor.name}
                   </h3>
                   {/* Period Filter Panel for Stats */}
                   <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg p-1 flex-wrap">
@@ -1490,7 +1493,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                     { label: "Not Clicked", value: userSummary.not_clicked },
                   ].map((card) => (
                     <div key={card.label} className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
-                      <p className="text-xs text-gray-400 font-medium mb-1">{card.label}</p>
+                      <p className="text-xs text-gray-400 font-medium mb-1">{t(card.label)}</p>
                       <p className="text-3xl font-light text-gray-600">
                         {loadingSummary ? "…" : card.value}
                       </p>
@@ -1502,7 +1505,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
               {/* 2. Sub-users Aggregated Transactions (Only show when there are sub-users under this supervisor) */}
               <div className="mb-6">
                 <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">
-                  Associated Sub-users' Combined Transactions
+                  {t("Associated Sub-users' Combined Transactions")}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
@@ -1512,7 +1515,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                     { label: "Not Clicked", value: subusersSummary.not_clicked },
                   ].map((card) => (
                     <div key={card.label} className="bg-white rounded-xl p-5 shadow-xs border border-gray-150">
-                      <p className="text-xs text-gray-400 font-medium mb-1">{card.label}</p>
+                      <p className="text-xs text-gray-400 font-medium mb-1">{t(card.label)}</p>
                       <p className="text-3xl font-light text-gray-600">
                         {loadingSubusersSummary ? "…" : card.value}
                       </p>
@@ -1534,12 +1537,12 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                         className="flex items-center gap-1.5 text-gray-500 hover:text-green-600 font-medium text-xs transition"
                       >
                         <ArrowLeftIcon />
-                        Back to directory
+                        {t("Back to directory")}
                       </button>
                     )}
                     <span className="font-semibold text-gray-800 text-sm hidden sm:inline">|</span>
                     <span className="font-semibold text-gray-800 text-sm">
-                      {isAdminSubUsers ? "Admin Sub-users List" : isSupervisorOnly ? "My Sub-users List" : `Sub-users of ${selectedSupervisor.name}`}
+                      {isAdminSubUsers ? t("Admin Sub-users List") : isSupervisorOnly ? t("My Sub-users List") : `${t("Sub-users of")} ${selectedSupervisor.name}`}
                     </span>
                   </div>
 
@@ -1559,19 +1562,19 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                 {subUsers.length === 0 ? (
                   <div className="text-center py-16 text-gray-400 bg-white">
-                    <p className="text-base font-semibold">No Sub-users Found</p>
-                    <p className="text-xs mt-1">There are no sub-users registered under this supervisor.</p>
+                    <p className="text-base font-semibold">{t("No Sub-users Found")}</p>
+                    <p className="text-xs mt-1">{t("There are no sub-users registered under this supervisor.")}</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700 w-12">Sr No</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Sub-user Name</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
-                          <th className="px-4 py-3 text-left font-semibold text-gray-700">Access Role Type</th>
-                          <th className="px-4 py-3 text-right font-semibold text-gray-700 pr-6">Actions</th>
+                          <th className="px-4 py-3 text-start font-semibold text-gray-700 w-12">{t("Sr No")}</th>
+                          <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Sub-user Name")}</th>
+                          <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Email Address")}</th>
+                          <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Access Role Type")}</th>
+                          <th className="px-4 py-3 text-end font-semibold text-gray-700 pr-6">{t("Actions")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1586,12 +1589,12 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                   {getRoleLabel(user)}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-right pr-6">
+                              <td className="px-4 py-3 text-end pr-6">
                                 <div className="flex items-center justify-end gap-3.5">
                                   <button
                                     onClick={() => setExpandedSubuserId(expandedSubuserId === user.id ? null : user.id)}
                                     className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-blue-600 transition flex items-center gap-1 text-xs font-semibold"
-                                    title="View Stats"
+                                    title={t("View Stats")}
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
@@ -1602,7 +1605,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                     <button
                                       onClick={() => openChangePasswordModal(user)}
                                       className="text-xs text-green-600 hover:text-green-750 font-semibold transition flex items-center gap-1"
-                                      title="Change Password"
+                                      title={t("Change Password")}
                                     >
                                       <KeyIcon />
                                       Change Password
@@ -1620,7 +1623,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                       <button
                                         onClick={() => openDeleteModal(user)}
                                         className="p-1 hover:bg-gray-100 rounded text-gray-500 hover:text-red-600 transition"
-                                        title="Delete Sub-user"
+                                        title={t("Delete Sub-user")}
                                       >
                                         <DeleteIcon />
                                       </button>
@@ -1634,30 +1637,30 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                 <td colSpan={5} className="px-6 py-4 border-b border-gray-200">
                                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                     <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
-                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">Total Sent</span>
+                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Total Sent")}</span>
                                       <span className="text-lg font-bold text-gray-755">{user.total_links_sent ?? 0}</span>
                                     </div>
                                     <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
-                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">Clicked</span>
+                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Clicked")}</span>
                                       <span className="text-lg font-bold text-gray-755">{user.total_clicked ?? 0}</span>
                                     </div>
                                     <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs">
-                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">Completed</span>
+                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Completed")}</span>
                                       <span className="text-lg font-bold text-gray-755">{user.total_completed ?? 0}</span>
                                     </div>
                                     <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs col-span-1">
-                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">Status Ratio</span>
+                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Status Ratio")}</span>
                                       <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                                        <div>Pending: <span className="font-semibold text-gray-700">{user.pending ?? 0}</span></div>
-                                        <div>Processing: <span className="font-semibold text-gray-700">{user.processing ?? 0}</span></div>
-                                        <div>Received: <span className="font-semibold text-gray-700">{user.received ?? 0}</span></div>
+                                        <div>{t("Pending")}: <span className="font-semibold text-gray-700">{user.pending ?? 0}</span></div>
+                                        <div>{t("Processing")}: <span className="font-semibold text-gray-700">{user.processing ?? 0}</span></div>
+                                        <div>{t("Received")}: <span className="font-semibold text-gray-700">{user.received ?? 0}</span></div>
                                       </div>
                                     </div>
                                     <div className="bg-white p-3 rounded-lg border border-gray-150 shadow-2xs col-span-1">
-                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">Review Results</span>
+                                      <span className="block text-[10px] text-gray-400 font-semibold uppercase">{t("Review Results")}</span>
                                       <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                                        <div>Accepted: <span className="font-semibold text-green-600">{user.accepted ?? 0}</span></div>
-                                        <div>Rejected: <span className="font-semibold text-red-600">{user.rejected ?? 0}</span></div>
+                                        <div>{t("Accepted")}: <span className="font-semibold text-green-600">{user.accepted ?? 0}</span></div>
+                                        <div>{t("Rejected")}: <span className="font-semibold text-red-600">{user.rejected ?? 0}</span></div>
                                       </div>
                                     </div>
                                   </div>
@@ -1679,7 +1682,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      Inspections Created by {selectedSupervisor.name} and Sub-users
+                      {t("Inspections Created by")} {selectedSupervisor.name} {t("and Sub-users")}
                     </h3>
                   </div>
 
@@ -1706,7 +1709,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d={tab.d} />
                           </svg>
-                          {tab.label}
+                          {t(tab.label)}
                         </button>
                       ))}
                     </div>
@@ -1722,7 +1725,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                         <SearchIcon />
                         <input
                           type="text"
-                          placeholder="Search by name, email,..."
+                          placeholder={t("Search by name, email,...")}
                           value={inspectionsSearch}
                           onChange={(e) => setInspectionsSearch(e.target.value)}
                           className="outline-none text-sm text-gray-600 placeholder-gray-400 w-full"
@@ -1731,7 +1734,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                       {/* From Date */}
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium text-gray-700">From</span>
+                        <span className="font-medium text-gray-700">{t("From")}</span>
                         <DatePicker
                           value={inspectionsDateFrom}
                           onChange={(val) => { setInspectionsDateFrom(val); setInspectionsCurrentPage(1); }}
@@ -1740,7 +1743,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                       {/* To Date */}
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium text-gray-700">To</span>
+                        <span className="font-medium text-gray-700">{t("To")}</span>
                         <DatePicker
                           value={inspectionsDateTo}
                           onChange={(val) => { setInspectionsDateTo(val); setInspectionsCurrentPage(1); }}
@@ -1773,7 +1776,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
 
                       {/* Sort By */}
                       <div className="flex items-center gap-2 sm:ml-auto text-sm">
-                        <span className="font-medium text-gray-700 whitespace-nowrap">Sort By</span>
+                        <span className="font-medium text-gray-700 whitespace-nowrap">{t("Sort By")}</span>
                         <SelectDropdown
                           value={inspectionsSortBy}
                           onChange={(val) => { setInspectionsSortBy(val); setInspectionsCurrentPage(1); }}
@@ -1786,7 +1789,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                     {/* Total Count */}
                     <div className="flex items-center justify-end px-4 py-2 border-b border-gray-100 bg-gray-50/50">
                       <div className="text-xs text-gray-500 font-semibold">
-                        Total Inspections: <span className="text-gray-800 font-bold">{inspectionsTotalCount}</span>
+                        {t("Total List :")} <span className="text-gray-800 font-bold">{inspectionsTotalCount}</span>
                       </div>
                     </div>
 
@@ -1797,7 +1800,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
-                        <span className="text-sm font-medium">Loading inspections list...</span>
+                        <span className="text-sm font-medium">{t("Loading inspections...")}</span>
                       </div>
                     ) : inspectionsError ? (
                       <div className="text-center py-16 text-red-500 font-medium bg-white">
@@ -1805,27 +1808,27 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                       </div>
                     ) : inspectionsRows.length === 0 ? (
                       <div className="text-center py-16 text-gray-400 bg-white">
-                        <p className="text-base font-semibold">No Inspections Found</p>
-                        <p className="text-xs mt-1">Adjust the filters or date ranges to search for inspections.</p>
+                        <p className="text-base font-semibold">{t("No inspections found")}</p>
+                        <p className="text-xs mt-1">{t("Adjust the filters or date ranges to search for inspections.")}</p>
                       </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b border-gray-200 bg-gray-50">
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700 w-12">Sr No</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer Name</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Email Address</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Policy Number</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Claim Number</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Created By</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Time</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Updated At</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700 w-32">Damage Level</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                              <th className="px-4 py-3 text-left font-semibold text-gray-700">Review Status</th>
-                              <th className="px-4 py-3 text-right font-semibold text-gray-700 pr-6">Actions</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700 w-12">{t("Sr No")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Customer Name")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Email Address")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Policy Number")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Claim Number")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Created By")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Date")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Time")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Updated At")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700 w-32">{t("Damage Level")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Status")}</th>
+                              <th className="px-4 py-3 text-start font-semibold text-gray-700">{t("Review Status")}</th>
+                              <th className="px-4 py-3 text-end font-semibold text-gray-700 pr-6">{t("Actions")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1882,7 +1885,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                   </td>
                                   <td className="px-4 py-3">
                                     <div className="flex flex-col gap-1">
-                                      {renderReviewStatus(row.correctResult)}
+                                      {renderReviewStatus(row.correctResult, t)}
                                       {row.additionalNotes && (
                                         <span className="text-gray-400 text-xs max-w-[120px] truncate" title={row.additionalNotes}>
                                           {row.additionalNotes}
@@ -1890,7 +1893,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-4 py-3 text-right pr-6">
+                                  <td className="px-4 py-3 text-end pr-6">
                                     <div className="flex items-center justify-end gap-2">
                                       {row.status === "expired" ? (
                                         <button
@@ -1915,9 +1918,9 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                         <>
                                           <button
                                             type="button"
-                                            onClick={() => { navigator.clipboard.writeText(row.link); alert("Link copied!"); }}
+                                            onClick={() => { navigator.clipboard.writeText(row.link); alert(t("Link copied!")); }}
                                             className="p-1 hover:bg-gray-100 rounded text-gray-450 hover:text-green-600 transition"
-                                            title="Copy Link"
+                                            title={t("Copy Link")}
                                           >
                                             <CopyIcon />
                                           </button>
@@ -1927,7 +1930,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                                         type="button"
                                         onClick={() => openOcrForInspectionRow(row)}
                                         className="p-1 hover:bg-gray-100 rounded text-gray-450 hover:text-green-600 transition"
-                                        title="View Detailed Results"
+                                        title={t("View")}
                                       >
                                         <EyeIcon />
                                       </button>
@@ -1990,7 +1993,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg border border-gray-100 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">Register New Supervisor</h2>
+              <h2 className="text-sm font-semibold text-gray-800">{t("Register New Supervisor")}</h2>
               <button
                 type="button"
                 onClick={() => setShowCreateSupervisorModal(false)}
@@ -2002,10 +2005,10 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
             <form onSubmit={handleCreateSupervisor}>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Supervisor Name</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Supervisor Name")}</label>
                   <input
                     type="text"
-                    placeholder="e.g. John Doe"
+                    placeholder={t("e.g. John Doe")}
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition"
@@ -2014,7 +2017,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email Address</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Email Address")}</label>
                   <input
                     type="email"
                     placeholder="supervisor@example.com"
@@ -2026,7 +2029,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Password</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Password")}</label>
                   <input
                     type="password"
                     placeholder="••••••••"
@@ -2051,9 +2054,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 <button
                   type="submit"
                   className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold transition"
-                >
-                  Register
-                </button>
+                >{t("Register")}</button>
               </div>
             </form>
           </div>
@@ -2065,7 +2066,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg border border-gray-100 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">Add Sub-user Account</h2>
+              <h2 className="text-sm font-semibold text-gray-800">{t("Add Sub-user Account")}</h2>
               <button
                 type="button"
                 onClick={() => setShowCreateSubUserModal(false)}
@@ -2077,10 +2078,10 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
             <form onSubmit={handleCreateSubUser}>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">User Name</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("User Name")}</label>
                   <input
                     type="text"
-                    placeholder="e.g. Jane Doe"
+                    placeholder={t("e.g. Jane Doe")}
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     className="border border-gray-300 rounded px-3 py-2 text-sm text-gray-700 w-full focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition"
@@ -2089,7 +2090,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email Address</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Email Address")}</label>
                   <input
                     type="email"
                     placeholder="subuser@example.com"
@@ -2101,7 +2102,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Password</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Password")}</label>
                   <input
                     type="password"
                     placeholder="••••••••"
@@ -2113,7 +2114,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Access Role Type</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Access Role Type")}</label>
                   <SelectDropdown
                     value={formType}
                     onChange={(val) => setFormType(val)}
@@ -2125,7 +2126,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 {/* Admin needs to specify supervisor. If we already clicked into a supervisor, pre-fill it. */}
                 {isAdmin && !selectedSupervisor && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Assign Supervisor</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Assign Supervisor")}</label>
                     <SelectDropdown
                       value={formSupervisorId}
                       onChange={(val) => setFormSupervisorId(val)}
@@ -2147,9 +2148,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 <button
                   type="submit"
                   className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold transition"
-                >
-                  Create
-                </button>
+                >{t("Create")}</button>
               </div>
             </form>
           </div>
@@ -2161,7 +2160,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg border border-gray-100 w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">Edit User Details</h2>
+              <h2 className="text-sm font-semibold text-gray-800">{t("Edit User Details")}</h2>
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
@@ -2173,7 +2172,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
             <form onSubmit={handleEditUser}>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">User Name</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("User Name")}</label>
                   <input
                     type="text"
                     value={formName}
@@ -2184,7 +2183,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email Address</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Email Address")}</label>
                   <input
                     type="email"
                     value={formEmail}
@@ -2197,7 +2196,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 {/* Only show access role type if the user is a subuser */}
                 {!isEditingSupervisor && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Access Role Type</label>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Access Role Type")}</label>
                     <SelectDropdown
                       value={formType}
                       onChange={(val) => setFormType(val)}
@@ -2219,9 +2218,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 <button
                   type="submit"
                   className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold transition"
-                >
-                  Save Changes
-                </button>
+                >{t("Save Changes")}</button>
               </div>
             </form>
           </div>
@@ -2233,7 +2230,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg border border-gray-100 w-full max-w-sm overflow-hidden">
             <div className="px-6 py-4 bg-red-50 text-red-700 border-b border-red-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Confirm Deletion</h2>
+              <h2 className="text-sm font-semibold">{t("Confirm Deletion")}</h2>
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(false)}
@@ -2243,16 +2240,14 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
               </button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-gray-600">
-                Are you sure you want to permanently delete the following user profile?
-              </p>
+              <p className="text-sm text-gray-600">{t("Are you sure you want to permanently delete the following user profile?")}</p>
               <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded text-sm">
                 <span className="block font-bold text-gray-800">{userToDelete.name}</span>
                 <span className="block text-xs text-gray-500 mt-0.5">{userToDelete.email}</span>
-                <span className="block text-xs text-gray-500 font-semibold mt-1">Role: {getRoleLabel(userToDelete)}</span>
+                <span className="block text-xs text-gray-500 font-semibold mt-1">{t("Role")}: {t(getRoleLabel(userToDelete))}</span>
               </div>
               <p className="text-xs text-red-600 font-medium mt-4">
-                This action is irreversible and will revoke all access privileges.
+                {t("This action is irreversible and will revoke all access privileges.")}
               </p>
               <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                 <button
@@ -2266,9 +2261,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                   type="button"
                   onClick={handleDeleteConfirm}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold transition"
-                >
-                  Delete User
-                </button>
+                >{t("Delete User")}</button>
               </div>
             </div>
           </div>
@@ -2280,7 +2273,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-lg border border-gray-100 w-full max-w-md overflow-hidden animate-fade-in">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">Change User Password</h2>
+              <h2 className="text-sm font-semibold text-gray-800">{t("Change User Password")}</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -2295,7 +2288,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
             <form onSubmit={handleChangePassword}>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email Address</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Email Address")}</label>
                   <input
                     type="email"
                     placeholder="user@example.com"
@@ -2308,7 +2301,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">New Password</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("New Password")}</label>
                   <input
                     type="password"
                     placeholder="••••••••"
@@ -2320,7 +2313,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Confirm Password</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">{t("Confirm Password")}</label>
                   <input
                     type="password"
                     placeholder="••••••••"
@@ -2346,9 +2339,7 @@ export default function UserAccessControl({ isAdminSubUsers = false }) {
                 <button
                   type="submit"
                   className="flex-1 md:flex-initial px-8 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-bold transition shadow-sm"
-                >
-                  Change Password
-                </button>
+                >{t("Change Password")}</button>
               </div>
             </form>
           </div>

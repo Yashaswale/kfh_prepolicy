@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { editInspectionOcr, uploadWindshieldImages, reassessDamageResult, editWindshieldAi, editCorrectIncorrectResult, rotateDamageMedia, rotateInspectionMedia, editCustomerDetails } from "../api";
 import { getUser } from "../utils/auth";
 // ─── Helpers ───────────────────────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ function rotateImageCCW90(dataUrl) {
 }
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
 function ImageEditorModal({ imageUrl, onClose, onSave }) {
+  const { t } = useTranslation();
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [tool, setTool] = useState("pen");
@@ -262,9 +264,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 
         {/* Footer */}
         <div className="flex justify-end gap-3 px-5 py-4 bg-gray-900 border-t border-gray-800">
-          <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium text-gray-400 border border-gray-700 hover:bg-gray-800 transition-colors">
-            Cancel
-          </button>
+          <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium text-gray-400 border border-gray-700 hover:bg-gray-800 transition-colors">{t("Cancel")}</button>
           <button onClick={handleSave} className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors">
             Save Changes
           </button>
@@ -469,6 +469,7 @@ function FieldRow({ label, value, wide }) {
 
 // ─── Editable Field Row (with inline edit + API save) ────────────────────────────
 function EditableFieldRow({ label, value, mediaId, onSaved }) {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value || "");
   const [saving, setSaving] = useState(false);
@@ -552,9 +553,7 @@ function EditableFieldRow({ label, value, mediaId, onSaved }) {
             onClick={handleCancel}
             disabled={saving}
             className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            Cancel
-          </button>
+          >{t("Cancel")}</button>
         </div>
         {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
@@ -597,9 +596,9 @@ function ImageSkeleton() {
   );
 }
 
-// ─── Correct / Incorrect Toggle ────────────────────────────────────────────────
 // ─── Review Status Toggle ────────────────────────────────────────────────
 function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hideEditStatus = false }) {
+  const { t } = useTranslation();
   const [correct, setCorrect] = useState(initialCorrect);
   const [notes, setNotes] = useState(initialNotes || "");
   const [isEditing, setIsEditing] = useState(false);
@@ -623,10 +622,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
   };
 
   const statusConfig = {
-    pending: { label: "Pending", color: "text-amber-600 bg-amber-50 border-amber-100", activeBg: "bg-amber-500 text-white hover:bg-amber-600" },
-    viewed: { label: "Viewed", color: "text-blue-600 bg-blue-50 border-blue-100", activeBg: "bg-blue-600 text-white hover:bg-blue-700" },
-    accepted: { label: "Accepted", color: "text-green-600 bg-green-50 border-green-100", activeBg: "bg-green-600 text-white hover:bg-green-700" },
-    rejected: { label: "Rejected", color: "text-red-600 bg-red-50 border-red-100", activeBg: "bg-red-600 text-white hover:bg-red-705" }
+    pending: { label: t("Pending"), color: "text-amber-600 bg-amber-50 border-amber-100", activeBg: "bg-amber-500 text-white hover:bg-amber-600" },
+    viewed: { label: t("Viewed"), color: "text-blue-600 bg-blue-50 border-blue-100", activeBg: "bg-blue-600 text-white hover:bg-blue-700" },
+    accepted: { label: t("Accepted"), color: "text-green-600 bg-green-50 border-green-100", activeBg: "bg-green-600 text-white hover:bg-green-700" },
+    rejected: { label: t("Rejected"), color: "text-red-600 bg-red-50 border-red-100", activeBg: "bg-red-600 text-white hover:bg-red-705" }
   };
 
   const getStatusLabel = (val) => {
@@ -642,10 +641,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 no-print flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Review Status</span>
+        <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">{t("Review Status")}</span>
         {!isEditing && !hideEditStatus && (
           <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-            Edit Status
+            {t("Edit Status")}
           </button>
         )}
       </div>
@@ -653,18 +652,18 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
       {!isEditing ? (
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium text-gray-600">Current Status:</span>
+            <span className="font-medium text-gray-600">{t("Current Status:")}</span>
             {currentStatus ? (
               <span className={`font-bold px-2 py-1 rounded border capitalize ${statusConfig[currentStatus].color}`}>
-                {currentStatus}
+                {statusConfig[currentStatus].label}
               </span>
             ) : (
-              <span className="text-gray-400 font-medium">— Not Marked —</span>
+              <span className="text-gray-400 font-medium">— {t("Not Marked")} —</span>
             )}
           </div>
           {notes && (
             <div className="flex items-start gap-2 text-sm">
-              <span className="font-medium text-gray-600 mt-0.5">Notes:</span>
+              <span className="font-medium text-gray-600 mt-0.5">{t("Notes:")}</span>
               <span className="text-gray-800 bg-gray-50 px-3 py-2 rounded-lg flex-1 border border-gray-100">{notes}</span>
             </div>
           )}
@@ -691,7 +690,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
           <div className="flex items-center gap-3">
             <input
               type="text"
-              placeholder="Add additional notes..."
+              placeholder={t("Add additional notes...")}
               value={notes}
               onChange={e => setNotes(e.target.value)}
               className="flex-1 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-4 py-2 text-sm outline-none"
@@ -702,7 +701,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
               disabled={saving}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50 transition-colors"
             >
-              {saving ? "Saving..." : "Save"}
+              {saving ? t("Saving...") : t("Save")}
             </button>
             <button
               onClick={() => {
@@ -713,7 +712,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
               disabled={saving}
               className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
             >
-              Cancel
+              {t("Cancel")}
             </button>
           </div>
         </div>
@@ -725,6 +724,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function WindShieldAssessmentResult({ inspectionRow, ocrData, windshieldData, ocrLoading, ocrError, onBack, onRefresh, hideEditStatus = false, onDetailsUpdated }) {
+  const { t } = useTranslation();
   const [editingImage, setEditingImage] = useState(null);
   const [editedAiImage, setEditedAiImage] = useState(null);
   const [editedWsImages, setEditedWsImages] = useState({});
@@ -912,9 +912,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             Back
           </button>
 
-          <h1 className="text-sm font-bold tracking-widest uppercase text-gray-800">
-            Windshield Claim Assessment
-          </h1>
+          <h1 className="text-sm font-bold tracking-widest uppercase text-gray-800">{t("Windshield Claim Assessment")}</h1>
 
           <div className="flex items-center gap-3">
             {isAdmin && (
@@ -954,15 +952,13 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
       {showReassessModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Start Reassessment</h3>
-            <p className="text-gray-500 text-sm mb-6">
-              Are you sure you want to start a new assessment for this windshield claim?
-            </p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">{t("Start Reassessment")}</h3>
+            <p className="text-gray-500 text-sm mb-6">{t("Are you sure you want to start a new assessment for this windshield claim?")}</p>
 
             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
               <div>
-                <span className="text-sm font-bold text-gray-800 block">Apply Rotation</span>
-                <span className="text-xs text-gray-500">Rotate images automatically</span>
+                <span className="text-sm font-bold text-gray-800 block">{t("Apply Rotation")}</span>
+                <span className="text-xs text-gray-500">{t("Rotate images automatically")}</span>
               </div>
               <button
                 onClick={() => setReassessRotation(!reassessRotation)}
@@ -982,9 +978,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
               <button
                 onClick={handleReassessment}
                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-              >
-                Confirm
-              </button>
+              >{t("Confirm")}</button>
             </div>
           </div>
         </div>
@@ -1024,7 +1018,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
 
         {/* Customer Details */}
         <SectionCard
-          title="Customer Details"
+          title={t("Customer Details")}
           action={
             !isEditingDetails ? (
               <button
@@ -1072,8 +1066,8 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
-              <FieldRow label="Full Name" value={customerName} />
-              <FieldRow label="Email Address" value={customerEmail} />
+              <FieldRow label={t("Customer Name")} value={customerName} />
+              <FieldRow label={t("Email Address")} value={customerEmail} />
 
               {isEditingDetails ? (
                 <>
@@ -1102,17 +1096,17 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                 </>
               ) : (
                 <>
-                  <FieldRow label="Policy No." value={policyNumber} />
-                  <FieldRow label="Claim No." value={claimNumber} />
+                  <FieldRow label={t("Policy Number")} value={policyNumber} />
+                  <FieldRow label={t("Claim Number")} value={claimNumber} />
                 </>
               )}
 
-              <FieldRow label="Location" value={location} />
-              <FieldRow label="Status" value={inspectionRow?.status || "—"} />
+              <FieldRow label={t("Location")} value={location} />
+              <FieldRow label={t("Status")} value={inspectionRow?.status || "—"} />
               {fakeImgDetected && (
                 <FieldRow
-                  label="Fake Image detected"
-                  value={<span className="text-red-600 font-bold uppercase tracking-wider">Yes</span>}
+                  label={t("Fake Image detected")}
+                  value={<span className="text-red-600 font-bold uppercase tracking-wider">{t("Yes")}</span>}
                 />
               )}
               {detailsError && (
@@ -1143,9 +1137,9 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
               {/* License */}
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">Plate No</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">{t("Plate No")}</h3>
                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                  onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate', mediaId: licensePlateEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
+                  onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: t('License Plate'), mediaId: licensePlateEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                   {licensePlateImage ? (
                     <img src={licensePlateImage} alt="License plate" className="w-full h-full object-cover" />
                   ) : (
@@ -1157,7 +1151,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                   )}
                 </div>
                 <EditableFieldRow
-                  label="Plate Number"
+                  label={t("Plate Number")}
                   value={licensePlateText}
                   mediaId={licensePlateEntry?.id}
                 />
@@ -1165,9 +1159,9 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
 
               {/* Chassis */}
               <div>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">{t("Chassis Number")}</h3>
                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                  onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number', mediaId: chassisEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
+                  onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: t('Chassis Number'), mediaId: chassisEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                   {chassisImage ? (
                     <img src={chassisImage} alt="Chassis number" className="w-full h-full object-cover" />
                   ) : (
@@ -1179,7 +1173,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                   )}
                 </div>
                 <EditableFieldRow
-                  label="Chassis Number"
+                  label={t("Chassis Number")}
                   value={chassisNumberText}
                   mediaId={chassisEntry?.id}
                 />
@@ -1192,7 +1186,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
 
         {/* Windshield Results */}
         {windshieldData && (
-          <SectionCard title="Windshield Assessment Results">
+          <SectionCard title={t("Windshield Assessment Results")}>
             {(() => {
               const wsData = windshieldData;
               const closeupUrl = buildUrl(wsData.closeup_image);
@@ -1212,10 +1206,10 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                         W
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-gray-900">Windshield Inspection</h4>
+                        <h4 className="text-sm font-bold text-gray-900">{t("Windshield Inspection")}</h4>
                         <span className={`text-xs font-semibold ${isMajor ? 'text-red-500' : isMinor ? 'text-orange-500' : hasDamage ? 'text-yellow-600' : 'text-green-600'
                           }`}>
-                          {hasDamage ? '⚠ Damage Detected' : '✓ No Damage'}
+                          {hasDamage ? `⚠ ${t('Damage Detected')}` : `✓ ${t('No Damage')}`}
                         </span>
                       </div>
                     </div>
@@ -1229,7 +1223,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                     {/* Closeup Image */}
                     <div>
                       <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                        onClick={() => closeupUrl && setFullscreenImage({ url: closeupUrl, label: 'Windshield Closeup', mediaId: wsData.id, rotateTarget: 'original' })}>
+                        onClick={() => closeupUrl && setFullscreenImage({ url: closeupUrl, label: t('Windshield Closeup'), mediaId: wsData.id, rotateTarget: 'original' })}>
                         {closeupUrl ? (
                           <img src={closeupUrl} alt="Windshield Closeup" className="w-full h-full object-cover" />
                         ) : (
@@ -1240,7 +1234,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                           </div>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-3 py-1.5">
-                          <span className="text-white text-xs font-medium">Closeup Image</span>
+                          <span className="text-white text-xs font-medium">{t("Windshield Closeup")}</span>
                         </div>
                       </div>
                     </div>
@@ -1248,7 +1242,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                     {/* Plate / AI Image */}
                     <div>
                       <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                        onClick={() => plateUrl && setFullscreenImage({ url: plateUrl, label: 'Windshield Plate', mediaId: wsData.id, rotateTarget: 'ai' })}>
+                        onClick={() => plateUrl && setFullscreenImage({ url: plateUrl, label: t('Windshield Plate'), mediaId: wsData.id, rotateTarget: 'ai' })}>
                         {plateUrl ? (
                           <img src={plateUrl} alt="Windshield Plate" className="w-full h-full object-cover" />
                         ) : (
@@ -1259,7 +1253,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                           </div>
                         )}
                         <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-3 py-1.5 flex items-center justify-between">
-                          <span className="text-white text-xs font-medium">Plate Image</span>
+                          <span className="text-white text-xs font-medium">{t("Windshield Plate")}</span>
                           {plateUrl && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditingImage({ url: buildUrl(wsData.plate_image), wsIndex: 0, mediaId: wsData.id, aiResult: wsData.ai_result || '' }); }}
@@ -1280,7 +1274,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                   {aiResult && (
                     <div className="mt-2">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">AI Result</span>
+                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">{t("AI Result")}</span>
                         <div className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center gap-2 ${isMajor
                           ? 'bg-red-50 text-red-700 border border-red-200'
                           : isMinor
@@ -1291,7 +1285,7 @@ export default function WindShieldAssessmentResult({ inspectionRow, ocrData, win
                           }`}>
                           <span className={`w-2.5 h-2.5 rounded-full ${isMajor ? 'bg-red-500' : isMinor ? 'bg-orange-400' : hasDamage ? 'bg-yellow-500' : 'bg-green-500'
                             }`} />
-                          {aiResult.charAt(0).toUpperCase() + aiResult.slice(1)}
+                          {t(aiResult)}
                         </div>
                       </div>
                     </div>

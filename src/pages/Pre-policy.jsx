@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { editInspectionOcr, editDamageAi, reassessDamageResult, editCorrectIncorrectResult, rotateDamageMedia, rotateInspectionMedia, reassessMedia, editCustomerDetails } from "../api";
 import { getUser } from "../utils/auth";
 
 // ─── Canvas Image Editor Modal ────────────────────────────────────────────────
 function ImageEditorModal({ imageUrl, onClose, onSave }) {
+    const { t } = useTranslation();
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [tool, setTool] = useState("pen");
@@ -235,9 +237,7 @@ function ImageEditorModal({ imageUrl, onClose, onSave }) {
 
                 {/* Footer */}
                 <div className="flex justify-end gap-3 px-5 py-4 bg-gray-900 border-t border-gray-800">
-                    <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium text-gray-400 border border-gray-700 hover:bg-gray-800 transition-colors">
-                        Cancel
-                    </button>
+                    <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium text-gray-400 border border-gray-700 hover:bg-gray-800 transition-colors">{t("Cancel")}</button>
                     <button onClick={handleSave} className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors">
                         Save Changes
                     </button>
@@ -442,6 +442,7 @@ function FieldRow({ label, value, wide }) {
 
 // ─── Editable Field Row (with inline edit + API save) ────────────────────────────
 function EditableFieldRow({ label, value, mediaId, onSaved }) {
+    const { t } = useTranslation();
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(value || "");
     const [saving, setSaving] = useState(false);
@@ -525,9 +526,7 @@ function EditableFieldRow({ label, value, mediaId, onSaved }) {
                         onClick={handleCancel}
                         disabled={saving}
                         className="px-3 py-2 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                        Cancel
-                    </button>
+                    >{t("Cancel")}</button>
                 </div>
                 {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
             </div>
@@ -573,6 +572,7 @@ function ImageSkeleton() {
 // ─── Correct / Incorrect Toggle ────────────────────────────────────────────────
 // ─── Review Status Toggle ────────────────────────────────────────────────
 function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hideEditStatus = false }) {
+    const { t } = useTranslation();
     const [correct, setCorrect] = useState(initialCorrect);
     const [notes, setNotes] = useState(initialNotes || "");
     const [isEditing, setIsEditing] = useState(false);
@@ -596,10 +596,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
     };
 
     const statusConfig = {
-        pending: { label: "Pending", color: "text-amber-600 bg-amber-50 border-amber-100", activeBg: "bg-amber-500 text-white hover:bg-amber-600" },
-        viewed: { label: "Viewed", color: "text-blue-600 bg-blue-50 border-blue-100", activeBg: "bg-blue-600 text-white hover:bg-blue-700" },
-        accepted: { label: "Accepted", color: "text-green-600 bg-green-50 border-green-100", activeBg: "bg-green-600 text-white hover:bg-green-700" },
-        rejected: { label: "Rejected", color: "text-red-600 bg-red-50 border-red-100", activeBg: "bg-red-600 text-white hover:bg-red-705" }
+        pending: { label: t("Pending"), color: "text-amber-600 bg-amber-50 border-amber-100", activeBg: "bg-amber-500 text-white hover:bg-amber-600" },
+        viewed: { label: t("Viewed"), color: "text-blue-600 bg-blue-50 border-blue-100", activeBg: "bg-blue-600 text-white hover:bg-blue-700" },
+        accepted: { label: t("Accepted"), color: "text-green-600 bg-green-50 border-green-100", activeBg: "bg-green-600 text-white hover:bg-green-700" },
+        rejected: { label: t("Rejected"), color: "text-red-600 bg-red-50 border-red-100", activeBg: "bg-red-600 text-white hover:bg-red-705" }
     };
 
     const getStatusLabel = (val) => {
@@ -615,10 +615,10 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6 no-print flex flex-col gap-4">
             <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">Review Status</span>
+                <span className="text-sm font-bold text-gray-900 uppercase tracking-wider">{t("Review Status")}</span>
                 {!isEditing && !hideEditStatus && (
                     <button onClick={() => setIsEditing(true)} className="px-3 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
-                        Edit Status
+                        {t("Edit Status")}
                     </button>
                 )}
             </div>
@@ -626,18 +626,18 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
             {!isEditing ? (
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium text-gray-600">Current Status:</span>
+                        <span className="font-medium text-gray-600">{t("Current Status:")}</span>
                         {currentStatus ? (
                             <span className={`font-bold px-2 py-1 rounded border capitalize ${statusConfig[currentStatus].color}`}>
-                                {currentStatus}
+                                {statusConfig[currentStatus].label}
                             </span>
                         ) : (
-                            <span className="text-gray-400 font-medium">— Not Marked —</span>
+                            <span className="text-gray-400 font-medium">— {t("Not Marked")} —</span>
                         )}
                     </div>
                     {notes && (
                         <div className="flex items-start gap-2 text-sm">
-                            <span className="font-medium text-gray-600 mt-0.5">Notes:</span>
+                            <span className="font-medium text-gray-600 mt-0.5">{t("Notes:")}</span>
                             <span className="text-gray-800 bg-gray-50 px-3 py-2 rounded-lg flex-1 border border-gray-100">{notes}</span>
                         </div>
                     )}
@@ -664,7 +664,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
                     <div className="flex items-center gap-3">
                         <input
                             type="text"
-                            placeholder="Add additional notes..."
+                            placeholder={t("Add additional notes...")}
                             value={notes}
                             onChange={e => setNotes(e.target.value)}
                             className="flex-1 border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg px-4 py-2 text-sm outline-none"
@@ -675,7 +675,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
                             disabled={saving}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50 transition-colors"
                         >
-                            {saving ? "Saving..." : "Save"}
+                            {saving ? t("Saving...") : t("Save")}
                         </button>
                         <button
                             onClick={() => {
@@ -686,7 +686,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
                             disabled={saving}
                             className="px-3 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
                         >
-                            Cancel
+                            {t("Cancel")}
                         </button>
                     </div>
                 </div>
@@ -698,6 +698,7 @@ function CorrectIncorrectToggle({ inspectionId, initialCorrect, initialNotes, hi
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, damageData, ocrLoading, ocrError, onBack, onRefresh, hideEditStatus = false, onDetailsUpdated }) {
+    const { t } = useTranslation();
     const [editingImage, setEditingImage] = useState(null);
     const [editedAiImage, setEditedAiImage] = useState(null);
     const [editedDamageImages, setEditedDamageImages] = useState({});
@@ -912,11 +913,11 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>
-                        Back
+                        {t("Back")}
                     </button>
 
                     <h1 className="text-sm font-bold tracking-widest uppercase text-gray-800">
-                        Pre-Policy Assessment Result
+                        {t("Pre-Policy Assessment Result")}
                     </h1>
 
                     <div className="flex items-center gap-3">
@@ -942,7 +943,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                                     </svg>
                                 )}
-                                Reassessment
+                                {t("Reassessment")}
                             </button>
                         )}
 
@@ -953,7 +954,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                             </svg>
-                            Export As PDF
+                            {t("Export As PDF")}
                         </button>
                     </div>
                 </div>
@@ -963,17 +964,17 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
             {showReassessModal && (
                 <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 no-print">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Start Reassessment</h3>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">{t("Start Reassessment")}</h3>
                         <p className="text-gray-500 text-sm mb-6">
-                            Are you sure you want to start a new assessment for this claim?
+                            {t("Are you sure you want to start a new assessment for this claim?")}
                         </p>
 
                         <div className="space-y-3 mb-6">
                             {/* License Plate Toggle */}
                             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <div>
-                                    <span className="text-sm font-bold text-gray-800 block">License Plate</span>
-                                    <span className="text-xs text-gray-500">Reassess the license plate text</span>
+                                    <span className="text-sm font-bold text-gray-800 block">{t("License Plate")}</span>
+                                    <span className="text-xs text-gray-500">{t("Reassess the license plate text")}</span>
                                 </div>
                                 <button
                                     type="button"
@@ -987,8 +988,8 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             {/* Chassis No Toggle */}
                             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <div>
-                                    <span className="text-sm font-bold text-gray-800 block">Chassis No</span>
-                                    <span className="text-xs text-gray-500">Reassess the chassis number text</span>
+                                    <span className="text-sm font-bold text-gray-800 block">{t("Chassis No")}</span>
+                                    <span className="text-xs text-gray-500">{t("Reassess the chassis number text")}</span>
                                 </div>
                                 <button
                                     type="button"
@@ -1002,8 +1003,8 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             {/* Vehicle Damage Toggle */}
                             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200">
                                 <div>
-                                    <span className="text-sm font-bold text-gray-800 block">Vehicle Damage</span>
-                                    <span className="text-xs text-gray-500">Reassess vehicle damage detection</span>
+                                    <span className="text-sm font-bold text-gray-800 block">{t("Vehicle Damage")}</span>
+                                    <span className="text-xs text-gray-500">{t("Reassess vehicle damage detection")}</span>
                                 </div>
                                 <button
                                     type="button"
@@ -1020,8 +1021,8 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                             {/* Auto Rotation Toggle */}
                             <div className={`flex items-center justify-between bg-gray-50 p-4 rounded-xl border border-gray-200 transition-opacity ${!reassessVehicleDamage ? 'opacity-50' : ''}`}>
                                 <div>
-                                    <span className="text-sm font-bold text-gray-800 block">Auto Rotation</span>
-                                    <span className="text-xs text-gray-500">Rotate images automatically</span>
+                                    <span className="text-sm font-bold text-gray-800 block">{t("Auto Rotation")}</span>
+                                    <span className="text-xs text-gray-500">{t("Rotate images automatically")}</span>
                                 </div>
                                 <button
                                     type="button"
@@ -1039,13 +1040,13 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                 onClick={() => setShowReassessModal(false)}
                                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
                             >
-                                Cancel
+                                {t("Cancel")}
                             </button>
                             <button
                                 onClick={handleReassessment}
                                 className="flex-1 px-4 py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
                             >
-                                Confirm
+                                {t("Confirm")}
                             </button>
                         </div>
                     </div>
@@ -1086,7 +1087,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
 
                 {/* Customer Details */}
                 <SectionCard
-                    title="Customer Details"
+                    title={t("Customer Details")}
                     action={
                         !isEditingDetails ? (
                             <button
@@ -1096,7 +1097,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                                 </svg>
-                                Edit Details
+                                {t("Edit Details")}
                             </button>
                         ) : (
                             <div className="flex items-center gap-2">
@@ -1115,14 +1116,14 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                         </svg>
                                     )}
-                                    Save
+                                    {t("Save")}
                                 </button>
                                 <button
                                     onClick={() => setIsEditingDetails(false)}
                                     disabled={detailsSaving}
                                     className="px-3 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-600 text-xs font-semibold rounded-lg transition-all disabled:opacity-50"
                                 >
-                                    Cancel
+                                    {t("Cancel")}
                                 </button>
                             </div>
                         )
@@ -1134,13 +1135,13 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4">
-                            <FieldRow label="Full Name" value={customerName} />
-                            <FieldRow label="Email Address" value={customerEmail} />
+                            <FieldRow label={t("Customer Name")} value={customerName} />
+                            <FieldRow label={t("Email Address")} value={customerEmail} />
 
                             {isEditingDetails ? (
                                 <>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">Policy No.</span>
+                                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">{t("Policy Number")}</span>
                                         <input
                                             type="text"
                                             value={editPolicy}
@@ -1151,7 +1152,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                         />
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">Claim No.</span>
+                                        <span className="text-sm font-medium text-gray-600 w-40 shrink-0">{t("Claim Number")}</span>
                                         <input
                                             type="text"
                                             value={editClaim}
@@ -1164,17 +1165,17 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                 </>
                             ) : (
                                 <>
-                                    <FieldRow label="Policy No." value={policyNumber} />
-                                    <FieldRow label="Claim No." value={claimNumber} />
+                                    <FieldRow label={t("Policy Number")} value={policyNumber} />
+                                    <FieldRow label={t("Claim Number")} value={claimNumber} />
                                 </>
                             )}
 
-                            <FieldRow label="Location" value={location} />
-                            <FieldRow label="Status" value={inspectionRow?.status || "—"} />
+                            <FieldRow label={t("Location")} value={location} />
+                            <FieldRow label={t("Status")} value={inspectionRow?.status || "—"} />
                             {fakeImgDetected && (
                                 <FieldRow
-                                    label="Fake Image detected"
-                                    value={<span className="text-red-600 font-bold uppercase tracking-wider">Yes</span>}
+                                    label={t("Fake Image detected")}
+                                    value={<span className="text-red-600 font-bold uppercase tracking-wider">{t("Yes")}</span>}
                                 />
                             )}
                             {detailsError && (
@@ -1205,9 +1206,9 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             {/* License */}
                             <div>
-                                <h3 className="text-sm font-bold text-gray-900 mb-3">Plate No</h3>
+                                <h3 className="text-sm font-bold text-gray-900 mb-3">{t("Plate No")}</h3>
                                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                                    onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: 'License Plate', mediaId: licensePlateEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
+                                    onClick={() => licensePlateImage && setFullscreenImage({ url: licensePlateImage, label: t('License Plate'), mediaId: licensePlateEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                                     {licensePlateImage ? (
                                         <img src={licensePlateImage} alt="License plate" className="w-full h-full object-cover" />
                                     ) : (
@@ -1219,7 +1220,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     )}
                                 </div>
                                 <EditableFieldRow
-                                    label="Plate Number"
+                                    label={t("Plate Number")}
                                     value={licensePlateText}
                                     mediaId={licensePlateEntry?.id}
                                 />
@@ -1227,9 +1228,9 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
 
                             {/* Chassis */}
                             <div>
-                                <h3 className="text-sm font-bold text-gray-900 mb-3">Chassis Number</h3>
+                                <h3 className="text-sm font-bold text-gray-900 mb-3">{t("Chassis Number")}</h3>
                                 <div className="rounded-xl overflow-hidden bg-gray-100 mb-4 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                                    onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: 'Chassis Number', mediaId: chassisEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
+                                    onClick={() => chassisImage && setFullscreenImage({ url: chassisImage, label: t('Chassis Number'), mediaId: chassisEntry?.id, rotateTarget: 'original', isInspectionMedia: true })}>
                                     {chassisImage ? (
                                         <img src={chassisImage} alt="Chassis number" className="w-full h-full object-cover" />
                                     ) : (
@@ -1241,7 +1242,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                     )}
                                 </div>
                                 <EditableFieldRow
-                                    label="Chassis Number"
+                                    label={t("Chassis Number")}
                                     value={chassisNumberText}
                                     mediaId={chassisEntry?.id}
                                 />
@@ -1254,7 +1255,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
 
                 {/* AI Damage Inspection Results */}
                 {damageEntries.length > 0 && (
-                    <SectionCard title="AI Damage Inspection">
+                    <SectionCard title={t("AI Damage Inspection")}>
                         <div className="space-y-8">
                             {damageEntries.map((entry, idx) => {
                                 const originalUrl = buildUrl(entry.original_image);
@@ -1274,10 +1275,10 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                                     {sideLabel.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-sm font-bold text-gray-900">{sideLabel}</h4>
+                                                    <h4 className="text-sm font-bold text-gray-900">{t(sideLabel)}</h4>
                                                     <span className={`text-xs font-semibold ${hasDamage ? 'text-red-500' : 'text-green-600'
                                                         }`}>
-                                                        {hasDamage ? '⚠ Damage Detected' : '✓ No Damage'}
+                                                        {hasDamage ? `⚠ ${t('Damage Detected')}` : `✓ ${t('No Damage')}`}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1290,35 +1291,35 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                             <div>
                                                 <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                                                    onClick={() => originalUrl && setFullscreenImage({ url: originalUrl, label: `${sideLabel} — Original`, mediaId: entry.id, rotateTarget: 'original' })}>
+                                                    onClick={() => originalUrl && setFullscreenImage({ url: originalUrl, label: `${t(sideLabel)} — ${t('Original')}`, mediaId: entry.id, rotateTarget: 'original' })}>
                                                     {originalUrl ? (
                                                         <img src={originalUrl} alt={`${sideLabel} original`} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                                                             <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5a2.25 2.25 0 003.75 21z" />
                                                             </svg>
                                                         </div>
                                                     )}
                                                     <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-3 py-1.5">
-                                                        <span className="text-white text-xs font-medium">Original</span>
+                                                        <span className="text-white text-xs font-medium">{t("Original")}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div>
                                                 <div className="rounded-xl overflow-hidden relative bg-gray-100 aspect-video group cursor-pointer hover:ring-2 hover:ring-green-400 transition-all"
-                                                    onClick={() => aiUrl && setFullscreenImage({ url: aiUrl, label: `${sideLabel} — AI Analysis`, mediaId: entry.id, rotateTarget: 'ai' })}>
+                                                    onClick={() => aiUrl && setFullscreenImage({ url: aiUrl, label: `${t(sideLabel)} — ${t('AI Analysis')}`, mediaId: entry.id, rotateTarget: 'ai' })}>
                                                     {aiUrl ? (
                                                         <img src={aiUrl} alt={`${sideLabel} AI`} className="w-full h-full object-cover" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center text-gray-400">
                                                             <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.41a2.25 2.25 0 013.182 0l2.909 2.91M3.75 21h16.5a2.25 2.25 0 002.25-2.25V5.25a2.25 2.25 0 00-2.25-2.25H3.75A2.25 2.25 0 001.5 5.25v13.5a2.25 2.25 0 003.75 21z" />
                                                             </svg>
                                                         </div>
                                                     )}
                                                     <div className="absolute bottom-0 left-0 right-0 bg-gray-900/80 px-3 py-1.5 flex items-center justify-between">
-                                                        <span className="text-white text-xs font-medium">AI Analysis</span>
+                                                        <span className="text-white text-xs font-medium">{t("AI Analysis")}</span>
                                                         {aiUrl && (
                                                             <button
                                                                 onClick={(e) => { e.stopPropagation(); setEditingImage({ url: buildUrl(entry.ai_image), damageIndex: idx, mediaId: entry.id, aiResult: JSON.stringify(entry.ai_result || {}) }); }}
@@ -1327,7 +1328,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                                                                 </svg>
-                                                                Edit
+                                                                {t("Edit")}
                                                             </button>
                                                         )}
                                                     </div>
@@ -1341,9 +1342,9 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                                 <table className="w-full text-sm">
                                                     <thead>
                                                         <tr className="bg-gray-50 border-b border-gray-100">
-                                                            <th className="text-left px-4 py-2.5 font-semibold text-gray-700 text-xs uppercase tracking-wider">Part</th>
-                                                            <th className="text-left px-4 py-2.5 font-semibold text-gray-700 text-xs uppercase tracking-wider">Status</th>
-                                                            <th className="text-left px-4 py-2.5 font-semibold text-gray-700 text-xs uppercase tracking-wider">Details</th>
+                                                            <th className="text-left px-4 py-2.5 font-semibold text-gray-700 text-xs uppercase tracking-wider">{t("Part")}</th>
+                                                            <th className="text-left px-4 py-2.5 font-semibold text-gray-700 text-xs uppercase tracking-wider">{t("Status")}</th>
+                                                            <th className="text-left px-4 py-2.5 font-semibold text-gray-700 text-xs uppercase tracking-wider">{t("Details")}</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1351,7 +1352,7 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                                             const partHasDamage = Array.isArray(damages) && damages.length > 0;
                                                             return (
                                                                 <tr key={pi} className="border-b border-gray-50 last:border-b-0">
-                                                                    <td className="px-4 py-2.5 text-gray-800 font-medium capitalize">{partName}</td>
+                                                                    <td className="px-4 py-2.5 text-gray-800 font-medium capitalize">{t(partName)}</td>
                                                                     <td className="px-4 py-2.5">
                                                                         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${partHasDamage
                                                                             ? 'bg-red-50 text-red-600 border border-red-200'
@@ -1359,17 +1360,17 @@ export default function PrePolicyAssessmentResult({ inspectionRow, ocrData, dama
                                                                             }`}>
                                                                             <span className={`w-1.5 h-1.5 rounded-full ${partHasDamage ? 'bg-red-500' : 'bg-green-500'
                                                                                 }`} />
-                                                                            {partHasDamage ? 'Damaged' : 'OK'}
+                                                                            {partHasDamage ? t('Damaged') : t('OK')}
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-4 py-2.5 text-gray-500 text-xs">
                                                                         {partHasDamage
                                                                             ? damages.map((d, di) => (
                                                                                 <span key={di} className="inline-block bg-red-50 text-red-600 px-2 py-0.5 rounded mr-1 mb-0.5">
-                                                                                    {typeof d === 'string' ? d : d.type || d.label || JSON.stringify(d)}
+                                                                                    {typeof d === 'string' ? t(d) : t(d.type || d.label) || JSON.stringify(d)}
                                                                                 </span>
                                                                             ))
-                                                                            : <span className="text-green-600">No issues found</span>
+                                                                            : <span className="text-green-600">{t("No issues found")}</span>
                                                                         }
                                                                     </td>
                                                                 </tr>

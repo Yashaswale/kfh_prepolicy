@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { sendInspectionLink } from "../api";
 import { getUser } from "../utils/auth";
 
 const SendLinkModal = ({ onClose }) => {
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language?.startsWith("ar");
   const [type, setType] = useState(() => {
     const currentUser = getUser();
     if (currentUser?.type === "claims_broad_access" || currentUser?.type === "claims_limited_access") {
@@ -29,7 +32,7 @@ const SendLinkModal = ({ onClose }) => {
     setSuccess("");
 
     if (!form.name || !form.phone) {
-      setError("Please fill in all required fields (Name, Phone).");
+      setError(t("Please fill in all required fields (Name, Phone)."));
       return;
     }
 
@@ -45,7 +48,7 @@ const SendLinkModal = ({ onClose }) => {
     setLoading(true);
     try {
       await sendInspectionLink(payload);
-      setSuccess("Link sent successfully.");
+      setSuccess(t("Link sent successfully."));
       // Close after a short delay so user can see success
       setTimeout(() => {
         onClose();
@@ -54,8 +57,8 @@ const SendLinkModal = ({ onClose }) => {
       const msg =
         err?.data?.detail ||
         err?.data?.error ||
-        "Failed to send link. Please try again.";
-      setError(msg);
+        t("Failed to send link. Please try again.");
+      setError(t(msg));
     } finally {
       setLoading(false);
     }
@@ -77,6 +80,44 @@ const SendLinkModal = ({ onClose }) => {
     }
     return true;
   });
+
+  const fields = [
+    {
+      id: "name",
+      label: "Name of the Customer",
+      placeholder: "Enter full name",
+      type: "text",
+      required: true,
+    },
+    {
+      id: "email",
+      label: "Customer Email Address",
+      placeholder: "Enter email",
+      type: "email",
+      required: false,
+    },
+    {
+      id: "phone",
+      label: "Customer Phone Number",
+      placeholder: "Enter phone no",
+      type: "tel",
+      required: true,
+    },
+    {
+      id: "policy",
+      label: "Customer Policy Number",
+      placeholder: "Enter policy number",
+      type: "text",
+      required: false,
+    },
+    {
+      id: "claim",
+      label: "Claim Number",
+      placeholder: "Enter claim number",
+      type: "text",
+      required: false,
+    },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -103,12 +144,12 @@ const SendLinkModal = ({ onClose }) => {
               </svg>
             </div>
             <h2 className="text-[17px] font-semibold text-gray-900 tracking-tight">
-              Send Link to Customer
+              {t("Send Link to Customer")}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
           >
             <svg
               className="w-4 h-4"
@@ -130,8 +171,8 @@ const SendLinkModal = ({ onClose }) => {
         <div className="px-7 py-6 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* Type selector */}
           <div>
-            <label className="block text-[13px] font-semibold text-gray-700 mb-3">
-              Type <span className="text-red-500">*</span>
+            <label className="block text-[13px] font-semibold text-gray-700 mb-3 text-start">
+              {t("Type")} <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-wrap gap-3">
               {types.map((opt) => (
@@ -158,95 +199,59 @@ const SendLinkModal = ({ onClose }) => {
                       <span className="w-1.5 h-1.5 rounded-full bg-white block" />
                     )}
                   </span>
-                  {opt.label}
+                  {t(opt.label)}
                 </label>
               ))}
             </div>
           </div>
 
           {/* Fields */}
-          {[
-            {
-              id: "name",
-              label: "Name of the Customer",
-              placeholder: "Enter full name",
-              type: "text",
-              required: true,
-            },
-            {
-              id: "email",
-              label: "Customer Email Address",
-              placeholder: "Enter email",
-              type: "email",
-              required: false,
-            },
-            {
-              id: "phone",
-              label: "Customer Phone Number",
-              placeholder: "Enter phone no",
-              type: "tel",
-              required: true,
-            },
-            {
-              id: "policy",
-              label: "Customer Policy Number",
-              placeholder: "Enter policy number",
-              type: "text",
-              required: false,
-            },
-            {
-              id: "claim",
-              label: "Claim Number",
-              placeholder: "Enter claim number",
-              type: "text",
-              required: false,
-            },
-          ].map((field) => (
+          {fields.map((field) => (
             <div key={field.id}>
               <label
                 htmlFor={field.id}
-                className="block text-[13px] font-semibold text-gray-700 mb-1.5"
+                className="block text-[13px] font-semibold text-gray-700 mb-1.5 text-start"
               >
-                {field.label} {field.required && <span className="text-red-500">*</span>}
+                {t(field.label)} {field.required && <span className="text-red-500">*</span>}
               </label>
               <input
                 id={field.id}
                 name={field.id}
                 type={field.type}
-                placeholder={field.placeholder}
+                placeholder={t(field.placeholder)}
                 value={form[field.id]}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 transition-all"
+                className="w-full px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 transition-all text-start"
               />
             </div>
           ))}
 
           {error && (
-            <p className="text-sm text-red-600">
+            <p className="text-sm text-red-600 text-start">
               {error}
             </p>
           )}
           {success && (
-            <p className="text-sm text-green-600">
+            <p className="text-sm text-green-600 text-start">
               {success}
             </p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-7 py-5 border-t border-gray-100 bg-gray-50/60">
+        <div className={`flex items-center gap-3 px-7 py-5 border-t border-gray-100 bg-gray-50/60 ${isRtl ? "justify-start" : "justify-end"}`}>
           <button
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors"
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-gray-700 border border-gray-200 hover:bg-gray-100 transition-colors cursor-pointer"
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition-all shadow-sm shadow-green-200 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 active:scale-95 transition-all shadow-sm shadow-green-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
-            {loading ? "Sending..." : "Send Link"}
+            {loading ? t("Sending...") : t("Send Link")}
           </button>
         </div>
       </div>

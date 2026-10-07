@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import LoginPage from './pages/Login'
 import Dashboard from './components/Dashboard'
 import Preclaim from './components/Preclaim'
@@ -9,6 +11,14 @@ import ResultsPage from './pages/ResultsPage'
 import './App.css'
 
 function App() {
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    const dir = i18n.language?.startsWith('ar') ? 'rtl' : 'ltr';
+    document.documentElement.dir = dir;
+    document.documentElement.lang = i18n.language || 'en';
+  }, [i18n.language]);
+
   return (
     <Router>
       <Routes>
